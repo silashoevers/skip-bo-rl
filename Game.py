@@ -34,9 +34,7 @@ class Game:
 
     # TODO: The game could crash if a player hoards cards
     def draw_card(self):
-        if len(self.draw_pile) > 0:
-            return self.draw_pile.pop()
-        else:
+        if len(self.draw_pile) == 0:
             # Reshuffle
             self.draw_pile = self.removed_pile
             random.shuffle(self.draw_pile)
@@ -44,6 +42,7 @@ class Game:
                 if card.face == 'S':
                     card.value = 0
             self.removed_pile = []
+        return self.draw_pile.pop()
 
     def get_top_of_build_pile(self, pile_index):
         pile = self.building_piles[pile_index]
