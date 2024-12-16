@@ -15,11 +15,9 @@ class Card:
         self.value = value
 
     def __eq__(self, other):
-        if isinstance(other, int):
-            return self.value == other
-        if isinstance(other, str) and other == "S":
-            return self.is_joker
+        if isinstance(other, (int, str)):
+            return self.face == other
         elif isinstance(other, Card):
-            return self.value == other.value
+            return self.face == other.face
         else:
             return False

@@ -50,7 +50,7 @@ class Player(ABC):
     def play_hand_to_build(self, card_face, build_index):
         play_card = self.get_card_from_hand(card_face)
         build_pile = self.game.building_piles[build_index]
-        if play_card.is_joker:
+        if play_card.face == 'S':
             play_card.value = self.game.get_top_of_build_pile(build_index) + 1
         build_pile.append(play_card)
 
