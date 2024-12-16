@@ -116,22 +116,41 @@ class HumanPlayer(Player):
             if card_location == "discard":
                 discard_pile = input("Which discard pile? [0-3]")
                 if discard_pile.isdigit():
-                    discard_pile = int(discard_pile) % 4
+                    discard_pile = int(discard_pile)
+                    if discard_pile<0 or discard_pile>3:
+                        return False
+                else:
+                    return False
             if card_location == "hand":
                 next_card = input("Which card would you like to play? [1-12 or S]")
                 if next_card.isnumeric():
                     next_card = int(next_card)
+                    if next_card < 1 or next_card > 12:
+                        return False
+                elif next_card != 'S':
+                    return False
             card_dest = input("On which build pile would you like to place the card? [0-3]")
             if card_dest.isnumeric():
-                card_dest = int(card_dest) % 4
+                card_dest = int(card_dest)
+                if card_dest<0 or card_dest>3:
+                    return False
+
             move = ("play", card_location, next_card, discard_pile, card_dest)
         else:
             discard = input("Which card would you like to discard? [1-12 or S]")
             if discard.isnumeric():
                 discard = int(discard)
+                if discard<1 or discard>12:
+                    return False
+            elif discard != 'S':
+                return False
             pile = input("To which discard pile? [0-3]")
             if pile.isnumeric():
-                pile = int(pile) % 4
+                pile = int(pile)
+                if pile<0 or pile>3:
+                    return False
+            else:
+                return False
             move = ("discard", discard, pile)
 
         return move
@@ -142,30 +161,34 @@ class HumanPlayer(Player):
         while not end_turn:
             self.print_game_state()
             move = self.ask_next_move()
-            legal = False
-            # Check if move is legal
-            if move[0] == "play":
-                if move[1] == "hand":
-                    legal = self.check_hand_to_build(move[2], move[4])
-                if move[1] == "discard":
-                    legal = self.check_discard_to_build(move[3], move[4])
-                if move[1] == "stock":
-                    legal = self.check_stock_to_build(move[4])
-            if move[0] == "discard":
-                legal = self.check_hand_to_discard(move[1], move[2])
-
-            # Play the move if legal, otherwise print error and go to top of loop
-            if legal:
+            if move:
+                legal = False
+                # Check if move is legal
                 if move[0] == "play":
                     if move[1] == "hand":
-                        self.play_hand_to_build(move[2], move[4])
+                        legal = self.check_hand_to_build(move[2], move[4])
                     if move[1] == "discard":
-                        self.play_discard_to_build(move[3], move[4])
+                        legal = self.check_discard_to_build(move[3], move[4])
                     if move[1] == "stock":
-                        self.play_stock_to_build(move[4])
+                        legal = self.check_stock_to_build(move[4])
                 if move[0] == "discard":
-                    self.play_hand_to_discard(move[1], move[2])
-                    end_turn = True
+                    legal = self.check_hand_to_discard(move[1], move[2])
+
+                # Play the move if legal, otherwise print error and go to top of loop
+                if legal:
+                    if move[0] == "play":
+                        if move[1] == "hand":
+                            self.play_hand_to_build(move[2], move[4])
+                        if move[1] == "discard":
+                            self.play_discard_to_build(move[3], move[4])
+                        if move[1] == "stock":
+                            self.play_stock_to_build(move[4])
+                    if move[0] == "discard":
+                        self.play_hand_to_discard(move[1], move[2])
+                        end_turn = True
+                else:
+                    print("Sorry, that is not a legal move")
+                    continue
             else:
                 print("Sorry, that is not a legal move")
                 continue
