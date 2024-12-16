@@ -23,7 +23,10 @@ class Player(ABC):
 
     def check_hand_to_build(self, card_face, build_index):
         if self.is_face_in_hand(card_face):
-            return card_face == self.game.get_top_of_build_pile(build_index) + 1
+            if card_face == 'S':
+                return True
+            else:
+                return card_face == self.game.get_top_of_build_pile(build_index) + 1
         else:
             return False
 
@@ -56,6 +59,8 @@ class Player(ABC):
             play_card.value = self.game.get_top_of_build_pile(build_index) + 1
         build_pile.append(play_card)
 
+        self.game.clear_build_pile_if_full(build_index)
+
         if len(self.hand) == 0:
             self.fill_hand()
 
@@ -70,10 +75,14 @@ class Player(ABC):
         build_pile = self.game.building_piles[build_index]
         build_pile.append(card)
 
+        self.game.clear_build_pile_if_full(build_index)
+
     def play_stock_to_build(self, build_index):
         card = self.stock_pile.pop()
         build_pile = self.game.building_piles[build_index]
         build_pile.append(card)
+
+        self.game.clear_build_pile_if_full(build_index)
 
 
 class HumanPlayer(Player):
@@ -81,24 +90,21 @@ class HumanPlayer(Player):
         super().__init__(game)
 
     def print_game_state(self):
-
-        print("The current build top cards are: " + self.game.get_top_of_build_pile(0) +
-              "\t" + self.game.get_top_of_build_pile(1) +
-              "\t" + self.game.get_top_of_build_pile(2) +
-              "\t" + self.game.get_top_of_build_pile(3) +
-              "\n")
+        print(f"The current build top cards are: {self.game.get_top_of_build_pile(0)}"
+              f" \t {self.game.get_top_of_build_pile(1)}"
+              f" \t {self.game.get_top_of_build_pile(2)}"
+              f" \t {self.game.get_top_of_build_pile(3)}")
         print("Your hand contains: ")
-        for i in self.hand:
-            print(i)
+        print(*[card.face for card in self.hand])
 
-        print("Your discard piles' top cards are: \n")
+        print("Your discard piles' cards are:")
         for i in range(len(self.discard_piles)):
-            if len(self.discard_piles[i])>0:
-                print(str(self.discard_piles[i][len(self.discard_piles[i])-1])+" with " +str(len(self.discard_piles[i]))+" cards left" )
+            if len(self.discard_piles[i]) > 0:
+                print(*[card.face for card in self.discard_piles[i]])
             else:
                 print("Empty pile")
 
-        print("Your top stock card is: " + str(self.stock_pile[len(self.stock_pile)-1]) +" with " + str(len(self.stock_pile)) +" cards left")
+        print(f"Your top stock card is: {(self.stock_pile[len(self.stock_pile) - 1]).face} with {len(self.stock_pile)} cards left")
 
     def ask_next_move(self):
         move = None
@@ -109,14 +115,24 @@ class HumanPlayer(Player):
             card_location = input("From where would you like to play? [hand, discard, stock]")
             if card_location == "discard":
                 discard_pile = input("Which discard pile? [0-3]")
+                if discard_pile.isdigit():
+                    discard_pile = int(discard_pile) % 4
             if card_location == "hand":
-                next_card = input("Which card would you like to play? [1-12 or joker]")
+                next_card = input("Which card would you like to play? [1-12 or S]")
+                if next_card.isnumeric():
+                    next_card = int(next_card)
             card_dest = input("On which build pile would you like to place the card? [0-3]")
-            move = ("play",card_location,next_card,discard_pile,card_dest)
+            if card_dest.isnumeric():
+                card_dest = int(card_dest) % 4
+            move = ("play", card_location, next_card, discard_pile, card_dest)
         else:
-            discard = input("Which card would you like to discard? [1-12 or joker]")
+            discard = input("Which card would you like to discard? [1-12 or S]")
+            if discard.isnumeric():
+                discard = int(discard)
             pile = input("To which discard pile? [0-3]")
-            move = ("discard",discard,pile)
+            if pile.isnumeric():
+                pile = int(pile) % 4
+            move = ("discard", discard, pile)
 
         return move
 
@@ -127,7 +143,7 @@ class HumanPlayer(Player):
             self.print_game_state()
             move = self.ask_next_move()
             legal = False
-            #Check if move is legal
+            # Check if move is legal
             if move[0] == "play":
                 if move[1] == "hand":
                     legal = self.check_hand_to_build(move[2], move[4])
@@ -136,7 +152,7 @@ class HumanPlayer(Player):
                 if move[1] == "stock":
                     legal = self.check_stock_to_build(move[4])
             if move[0] == "discard":
-                legal= self.check_hand_to_discard(move[1], move[2])
+                legal = self.check_hand_to_discard(move[1], move[2])
 
             # Play the move if legal, otherwise print error and go to top of loop
             if legal:
@@ -154,8 +170,8 @@ class HumanPlayer(Player):
                 print("Sorry, that is not a legal move")
                 continue
 
-            #Check if the player has won, if so: end the game
-            if len(self.stock_pile)<1:
+            # Check if the player has won, if so: end the game
+            if len(self.stock_pile) < 1:
                 print("Your stock pile is empty, congratulations!")
                 self.game.is_game_running = False
                 return

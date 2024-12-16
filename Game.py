@@ -51,6 +51,12 @@ class Game:
         else:
             return pile[-1].value
 
+    def clear_build_pile_if_full(self, pile_index):
+        pile = self.building_piles[pile_index]
+        if len(pile) == 12:
+            self.removed_pile.extend(pile)
+            self.building_piles[pile_index] = []
+
     def start(self):
         current_player_index = 0
         while self.is_game_running:
