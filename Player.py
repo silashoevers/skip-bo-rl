@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
 import torch
+from torch.fx.passes.utils.fuser_utils import topo_sort
 
 
 class Player(ABC):
@@ -90,21 +91,16 @@ class HumanPlayer(Player):
         super().__init__(game)
 
     def print_game_state(self):
-        print(f"The current build top cards are: {self.game.get_top_of_build_pile(0)}"
-              f" \t {self.game.get_top_of_build_pile(1)}"
-              f" \t {self.game.get_top_of_build_pile(2)}"
-              f" \t {self.game.get_top_of_build_pile(3)}")
-        print("Your hand contains: ")
-        print(*[card.face for card in self.hand])
-
-        print("Your discard piles' cards are:")
-        for i in range(len(self.discard_piles)):
-            if len(self.discard_piles[i]) > 0:
-                print(*[card.face for card in self.discard_piles[i]])
-            else:
-                print("Empty pile")
-
-        print(f"Your top stock card is: {(self.stock_pile[len(self.stock_pile) - 1]).face} with {len(self.stock_pile)} cards left")
+        # TODO: Add opponent game state (Scale up to 3 other players)
+        # Building pile top cards
+        tops_of_build_piles = [self.game.get_top_of_build_pile(pile_index) for pile_index in range(0,4)]
+        print("  ".join([f"[{top if top > 0 else '_'}]" for top in tops_of_build_piles]))
+        print()
+        # Discard piles. Only show top card per pile
+        print(f"[{self.stock_pile[-1]}]]  " + " ".join([f"[{self.discard_piles[pile_index][-1] if len(self.discard_piles[pile_index]) > 0 else '_'}]" for pile_index in range(0,4)]))
+        print('----------------------')
+        # Hand and stock
+        print("/=E " + " ".join([f"[{card}]" for card in self.hand]) + " Ǝ=\\")
 
     def ask_next_move(self):
         move = None

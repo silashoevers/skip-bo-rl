@@ -21,3 +21,6 @@ class Card:
             return self.face == other.face
         else:
             return False
+
+    def __str__(self):
+        return str(self.face)
