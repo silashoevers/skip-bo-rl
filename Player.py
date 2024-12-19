@@ -1,8 +1,13 @@
 from abc import ABC, abstractmethod
 
 import torch
-from torch.fx.passes.utils.fuser_utils import topo_sort
 
+HELP_STRING = """The commands are:
+discard build [discard_pile_index] [build_pile_index]
+stock build [build_pile_index]
+hand build [card_face] [build_pile_index]
+hand discard [card_face] [discard_pile_index]. Ends your turn.
+"""
 
 class Player(ABC):
     def __init__(self, game):
@@ -92,6 +97,7 @@ class HumanPlayer(Player):
 
     def print_game_state(self):
         # TODO: Add opponent game state (Scale up to 3 other players)
+        # TODO: Add index indicator for build and discard piles
         # Building pile top cards
         tops_of_build_piles = [self.game.get_top_of_build_pile(pile_index) for pile_index in range(0,4)]
         print("  ".join([f"[{top if top > 0 else '_'}]" for top in tops_of_build_piles]))
@@ -100,95 +106,43 @@ class HumanPlayer(Player):
         print(f"[{self.stock_pile[-1]}]]  " + " ".join([f"[{self.discard_piles[pile_index][-1] if len(self.discard_piles[pile_index]) > 0 else '_'}]" for pile_index in range(0,4)]))
         print('----------------------')
         # Hand and stock
-        print("/=E " + " ".join([f"[{card}]" for card in self.hand]) + " Ǝ=\\")
-
-    def ask_next_move(self):
-        move = None
-        next_move = input("What would you like to do? [play or discard]")
-        if next_move == "play":
-            discard_pile = None
-            next_card = None
-            card_location = input("From where would you like to play? [hand, discard, stock]")
-            if card_location == "discard":
-                discard_pile = input("Which discard pile? [0-3]")
-                if discard_pile.isdigit():
-                    discard_pile = int(discard_pile)
-                    if discard_pile<0 or discard_pile>3:
-                        return False
-                else:
-                    return False
-            if card_location == "hand":
-                next_card = input("Which card would you like to play? [1-12 or S]")
-                if next_card.isnumeric():
-                    next_card = int(next_card)
-                    if next_card < 1 or next_card > 12:
-                        return False
-                elif next_card != 'S':
-                    return False
-            card_dest = input("On which build pile would you like to place the card? [0-3]")
-            if card_dest.isnumeric():
-                card_dest = int(card_dest)
-                if card_dest<0 or card_dest>3:
-                    return False
-
-            move = ("play", card_location, next_card, discard_pile, card_dest)
-        else:
-            discard = input("Which card would you like to discard? [1-12 or S]")
-            if discard.isnumeric():
-                discard = int(discard)
-                if discard<1 or discard>12:
-                    return False
-            elif discard != 'S':
-                return False
-            pile = input("To which discard pile? [0-3]")
-            if pile.isnumeric():
-                pile = int(pile)
-                if pile<0 or pile>3:
-                    return False
-            else:
-                return False
-            move = ("discard", discard, pile)
-
-        return move
+        print("=E " + " ".join([f"[{card}]" for card in self.hand]) + " Ǝ=")
 
     def play(self):
         self.fill_hand()
         end_turn = False
         while not end_turn:
             self.print_game_state()
-            move = self.ask_next_move()
-            if move:
-                legal = False
-                # Check if move is legal
-                if move[0] == "play":
-                    if move[1] == "hand":
-                        legal = self.check_hand_to_build(move[2], move[4])
-                    if move[1] == "discard":
-                        legal = self.check_discard_to_build(move[3], move[4])
-                    if move[1] == "stock":
-                        legal = self.check_stock_to_build(move[4])
-                if move[0] == "discard":
-                    legal = self.check_hand_to_discard(move[1], move[2])
-
-                # Play the move if legal, otherwise print error and go to top of loop
-                if legal:
-                    if move[0] == "play":
-                        if move[1] == "hand":
-                            self.play_hand_to_build(move[2], move[4])
-                        if move[1] == "discard":
-                            self.play_discard_to_build(move[3], move[4])
-                        if move[1] == "stock":
-                            self.play_stock_to_build(move[4])
-                    if move[0] == "discard":
-                        self.play_hand_to_discard(move[1], move[2])
+            match input("What's your move? Type 'help' to get an overview of available commands.\n").split():
+                case ["discard", "build", discard_pile_index, build_pile_index]:
+                    discard_pile_index, build_pile_index = int(discard_pile_index), int(build_pile_index)
+                    if self.check_discard_to_build(discard_pile_index, build_pile_index):
+                        self.play_discard_to_build(discard_pile_index, build_pile_index)
+                    else:
+                       print("Move not legal")
+                case ["stock", "build", build_pile_index]:
+                    build_pile_index = int(build_pile_index)
+                    if self.check_stock_to_build(build_pile_index):
+                        self.play_stock_to_build(build_pile_index)
+                    else:
+                        print("Move not legal")
+                case ["hand", "build", card_face, build_pile_index]:
+                    # TODO Remove str to int transform (Face should be str, value should be int
+                    card_face = int(card_face) if card_face.isdigit() else card_face
+                    if self.check_hand_to_build(card_face, int(build_pile_index)):
+                        self.play_hand_to_build(card_face, int(build_pile_index))
+                    else:
+                        print("Move not legal")
+                case ["hand", "discard", card_face, discard_pile_index]:
+                    card_face = int(card_face) if card_face.isdigit() else card_face
+                    if self.check_hand_to_discard(card_face, int(discard_pile_index)):
+                        self.play_hand_to_discard(card_face, int(discard_pile_index))
                         end_turn = True
-                else:
-                    print("Sorry, that is not a legal move")
-                    continue
-            else:
-                print("Sorry, that is not a legal move")
-                continue
-
+                    else:
+                        print("Move not legal")
+                case _:  # Unknown command
+                    print("Invalid input")
+                    print(HELP_STRING)
             # Check if the player has won, if so: end the game
             if len(self.stock_pile) < 1:
                 print("Your stock pile is empty, congratulations!")
