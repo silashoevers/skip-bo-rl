@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 
 import torch
 
+import Card
+
 HELP_STRING = """The commands are:
 discard build [discard_pile_index] [build_pile_index]
 stock build [build_pile_index]
@@ -10,6 +12,10 @@ hand discard [card_face] [discard_pile_index]. Ends your turn.
 """
 
 class Player(ABC):
+    hand: list[Card.Card]
+    discard_piles: list[list[Card.Card]]
+    stock_pile: list[Card.Card]
+
     def __init__(self, game):
         self.hand = []
         self.discard_piles = [[], [], [], []]
@@ -152,25 +158,37 @@ class HumanPlayer(Player):
 
 
 class ComputerPlayer(Player):
-    def __init__(self, game, device):
+    def __init__(self, game, model, device):
         super().__init__(game)
-        self.mask = torch.empty(
+        self.mask = torch.zeros(
+            # NOTE: IN THE MASK, ALL CARDS ARE MAPPED TO ONE LOWER, so card 1 is in offset 0 of the mask
             13 * 4  # For every card to every build pile, so first card 1 to build 0, then card 1 to build 1 etc.
             + 13 * 4  # For every card to every discard pile, so first card 1 to discard 0, then card 1 to discard 1 etc.
             + 4 * 4  # From every discard pile to every build pile, so discard 0 to build 0, then discard 0 to build 1 etc.
             + 4  # From stock pile to every build pile, so first stock to build 0, then stock to build 1
         ).to(device)
+
+        self.model_input = torch.zeros(  # NOTE: We doing some bullshit here with card faces compared to offsets
+            13  # Hand Cards NOTE: model_input[0] means card 1!
+            + 13 * 4  # One hot encodings for each discard pile # here again, card 1 goes to offset 0
+            + 13  # One hot encoding for the stock pile # here again, card 1 goes to offset 0
+            + 12 * 4
+            # One hot encodings for each build pile # HERE IT DOESN'T, we have 12 possible values 0 means that no card is on the stack, max values is 11
+            # Could be expanded for Opponents
+        ).to(device)
+
         self.device = device
+        self.model = model
         self.num_piles = 4
 
     def compute_mask(self):
-        for card in range(1, 14):
+        for card in range(13):
             for pile in range(4):
-                card_face = 'S' if card == 13 else card
+                card_face = 'S' if card == 12 else card + 1
                 self.mask[self.num_piles * card + pile] = self.check_hand_to_build(card_face, pile)
         offset = 13 * 4
-        for card in range(1, 14):
-            card_face = 'S' if card == 13 else card
+        for card in range(13):
+            card_face = 'S' if card == 12 else card + 1
             self.mask[offset + self.num_piles * card:
                       offset + self.num_piles * card + self.num_piles] = self.check_hand_to_discard(
                 card_face, 0)  # Only need to check for 1, not for all piles, as it does not depend on the pile
@@ -199,7 +217,7 @@ class ComputerPlayer(Player):
                 discard_pile, build_index)
 
     # Update the mask for every type of action
-    def mask_update_hand_to_build(self, card_face, build_index):
+    def update_mask_hand_to_build(self, card_face, build_index):
         # Check if we have the next card in hand
         self.next_card_in_hand(build_index)
         # Check if we can play any of our discard pile
@@ -207,16 +225,17 @@ class ComputerPlayer(Player):
         # Check if we can play from the stock
         self.can_play_from_stock(build_index)
 
-        # Check if we have the same card again for discard and build
-        card_face = 13 if card_face == 'S' else card_face
+        # Check if we have the same card again for build and discard
+        card_face = 12 if card_face == 'S' else card_face - 1
         for build_pile in range(4):
             self.mask[self.num_piles * card_face + build_pile] = self.check_hand_to_build(card_face, build_pile)
+
         offset = 13 * 4
         self.mask[offset + self.num_piles * card_face:
                   offset + self.num_piles * card_face + self.num_piles] = self.check_hand_to_discard(
             card_face, 0)
 
-    def mask_update_discard_to_build(self, discard_index, build_index):
+    def update_mask_discard_to_build(self, discard_index, build_index):
         # Check if we have the next card for the build pile in hand
         self.next_card_in_hand(build_index)
         # Check if we can play from stock
@@ -230,7 +249,7 @@ class ComputerPlayer(Player):
             self.mask[offset + self.num_piles * discard_index + build_pile] = self.check_discard_to_build(
                 discard_index, build_pile)
 
-    def mask_update_stock_to_build(self, build_index):
+    def update_mask_stock_to_build(self, build_index):
         # Check if we have the next card in hand
         self.next_card_in_hand(build_index)
         # Check if we can play from discard pile to the build pile
@@ -238,5 +257,98 @@ class ComputerPlayer(Player):
         # Check if we can play from the stock
         self.can_play_from_stock(build_index)
 
+    def compute_model_input(self):
+        self.model_input.zero_()
+        for card in self.hand:
+            self.model_input[12 if card.face == "S" else card.face - 1] += 1
+
+        offset = 13
+        for discard_pile in range(4):
+            if len(self.discard_piles[discard_pile]) > 0:
+                card = self.discard_piles[discard_pile][-1]
+                self.model_input[offset + 13 * discard_pile + (12 if card.face == "S" else card.face - 1)] = 1
+
+        offset = 13 + 13 * 4
+        top_off_stock = self.stock_pile[-1]
+        self.model_input[offset + (12 if top_off_stock.face == "S" else top_off_stock.face - 1)] = 1
+
+        offset = 13 + 4 * 13 + 13
+        for build_pile in range(4):
+            card = self.game.get_top_of_build_pile(build_pile)
+            self.model_input[offset + 12 * build_pile + card] = 1
+
+    def check_build_pile(self, build_index):
+        offset = 13 + 4 * 13 + 13
+
+        card = self.game.get_top_of_build_pile(build_index)
+        if card == 0:
+            self.model_input[offset + 12 * build_index + 11] = 0
+        else:
+            self.model_input[offset + 12 * build_index + card - 1] = 0
+        self.model_input[offset + 12 * build_index + card] = 1
+
+    def update_input_hand_to_build(self, card_face, build_index):
+        # Remove card from hand
+        card_index = 12 if card_face == "S" else card_face - 1
+        self.model_input[card_index] -= 1
+
+        self.check_build_pile(build_index)
+
+    def update_input_discard_to_build(self, discard_index, build_index):
+        # Clear the discard pile
+        offset = 13
+        self.model_input[offset + 13 * discard_index: offset + 13 * discard_index + 13] = 0
+
+        # Set the right one hot
+        if len(self.discard_piles[discard_index]) > 0:
+            card = self.discard_piles[discard_index][-1]
+            self.model_input[offset + 13 * discard_index + (12 if card.face == "S" else card.face - 1)] = 1
+
+        self.check_build_pile(build_index)
+
+    def update_input_stock_to_build(self, build_index):
+        offset = 13 + 13 * 4
+        # Clear the stock pile list
+        self.model_input[offset: offset + 13] = 0
+
+        # Set the right one hot
+        top_off_stock = self.stock_pile[-1]
+        self.model_input[offset + (12 if top_off_stock.face == "S" else top_off_stock.face - 1)] = 1
+
+        self.check_build_pile(build_index)
+
     def play(self):
-        pass
+        self.fill_hand()
+        self.compute_mask()
+        self.compute_model_input()
+
+        end_turn = False
+        while not end_turn:
+            # Assuming for now no exploration, just doing what the model says.
+            output = self.model(self.model_input)
+
+            # Mask the output
+            masked_output = output * self.mask
+
+            task = masked_output.argmax().item()
+            if task < 13 * 4:
+                face = "S" if task // 4 == 12 else task // 4 + 1
+                self.play_hand_to_build(face, task % 4)
+                self.update_input_hand_to_build(face, task % 4)
+                self.update_mask_hand_to_build(face, task % 4)
+            elif 13 * 4 <= task < 13 * 4 + 13 * 4:
+                task -= 13 * 4
+                face = "S" if task // 4 == 12 else task // 4 + 1
+                self.play_hand_to_discard(face, task % 4)
+                end_turn = True
+            elif 13 * 4 + 13 * 4 <= task < 13 * 4 + 13 * 4 + 4 * 4:
+                task -= 13 * 4 + 13 * 4
+                self.play_discard_to_build(task // 4, task % 4)
+                self.update_mask_discard_to_build(task // 4, task % 4)
+                self.update_input_discard_to_build(task // 4, task % 4)
+            else:
+                task -= 13 * 4 + 13 * 4 + 4 * 4
+                self.play_stock_to_build(task)
+                self.update_mask_stock_to_build(task)
+                self.update_input_stock_to_build(task)
+

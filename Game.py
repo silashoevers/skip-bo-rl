@@ -10,7 +10,8 @@ class Game:
         for _ in range(num_human_players):
             self.players.append(HumanPlayer(self))
         for _ in range(num_computer_players):
-            self.players.append(ComputerPlayer(self))
+            device = torch.device("cpu")
+            self.players.append(ComputerPlayer(self, model=None, device=device))
         random.shuffle(self.players)
 
         self.draw_pile = [Card(i) for i in range(1, 13) for _ in range(12)] + [Card('S') for _ in range(18)]
