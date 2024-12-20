@@ -1,6 +1,7 @@
 import random
 
 from Player import *
+from ComputerPlayer import *
 from Card import *
 
 
@@ -11,7 +12,8 @@ class Game:
             self.players.append(HumanPlayer(self))
         for _ in range(num_computer_players):
             device = torch.device("cpu")
-            self.players.append(ComputerPlayer(self, model=None, device=device))
+            # TODO: Write simple model with random weights to test whether dumb dumb computer player can play
+            self.players.append(ComputerPlayer(self, model=NeuralNetwork(126, 124, 2, 500), device=device))
         random.shuffle(self.players)
 
         self.draw_pile = [Card(i) for i in range(1, 13) for _ in range(12)] + [Card('S') for _ in range(18)]
@@ -33,7 +35,7 @@ class Game:
 
         self.is_game_running = True
 
-    # TODO: The game could crash if a player hoards cards
+    # TODO: The game could crash if a player hoards cards. Fix this.
     def draw_card(self):
         if len(self.draw_pile) == 0:
             # Reshuffle
@@ -68,6 +70,7 @@ class Game:
         winning_player_index = [player_index for player_index, player in enumerate(self.players) if len(player.stock_pile) == 0][0]
         print(f"Player number {winning_player_index} has won. Congratulations!")
         return
+
 
 if __name__ == '__main__':
     num_human_players = int(input('How many human players?\n'))
