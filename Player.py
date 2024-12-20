@@ -322,6 +322,9 @@ class ComputerPlayer(Player):
         self.compute_mask()
         self.compute_model_input()
 
+        self.pretty_print_input()
+        self.pretty_print_mask()
+
         end_turn = False
         while not end_turn:
             # Assuming for now no exploration, just doing what the model says.
@@ -352,3 +355,45 @@ class ComputerPlayer(Player):
                 self.update_mask_stock_to_build(task)
                 self.update_input_stock_to_build(task)
 
+    def pretty_print_mask(self):
+        print("Mask:")
+
+        print("Hand to build:")
+        print("-> Build index")
+        print("↓ Card")
+        print(self.mask[:13*4].view(13, 4))
+
+        print("Hand to discard:")
+        print("-> Discard index")
+        print("↓ Card")
+        print(self.mask[13*4:13*4+13*4].view(13, 4))
+
+        print("Discard to Build:")
+        print("-> Discard index")
+        print("↓ Build index")
+        print(self.mask[13*4+13*4:13*4+13*4+4*4].view(4,4))
+
+        print("Stock to build:")
+        print("-> Build index")
+        print(self.mask[13*4+13*4+4*4:])
+
+    def pretty_print_input(self):
+        print("Input:")
+
+        print("Cards:")
+        print("-> Card")
+        print(self.model_input[:13])
+
+        print("Discard piles:")
+        print("-> Card")
+        print("↓ Discard Pile")
+        print(self.model_input[13:13+13*4].view(4,13))
+
+        print("Stock Card:")
+        print("-> Card")
+        print(self.model_input[13+13*4:13+13*4+13])
+
+        print("Build piles:")
+        print("-> Card")
+        print("↓ Build Pile")
+        print(self.model_input[13+13*4+13:].view(4,12))
