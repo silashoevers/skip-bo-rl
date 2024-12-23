@@ -28,6 +28,7 @@ class ComputerPlayer(Player):
         self.num_piles = 4
 
     def compute_mask(self):
+        self.mask.zero_()
         for card in range(13):
             for pile in range(4):
                 card_face = 'S' if card == 12 else card + 1
@@ -71,7 +72,7 @@ class ComputerPlayer(Player):
         self.fill_hand()
 
         end_turn = False
-        while not end_turn:
+        while not end_turn and self.game.is_game_running:
             self.print_game_state()  # TODO: Enable this with a DEBUG flag
             # Assuming for now no exploration, just doing what the model says.
             output = self.model(self.model_input)
@@ -105,6 +106,10 @@ class ComputerPlayer(Player):
                 task -= 13 * 4 + 13 * 4 + 4 * 4
                 print(f"Stock to build: {task}")
                 self.play_stock_to_build(task)
+                if len(self.stock_pile) < 1:
+                    print("Your stock pile is empty, congratulations!")
+                    self.game.is_game_running = False
+                    return
 
     def pretty_print_mask(self):
         print("Mask:")

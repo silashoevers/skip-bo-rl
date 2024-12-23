@@ -82,6 +82,10 @@ class Player(ABC):
     def play_discard_to_build(self, discard_index, build_index):
         discard_pile = self.discard_piles[discard_index]
         card = discard_pile.pop()
+
+        if card.face == 'S':
+            card.value = self.game.get_top_of_build_pile(build_index) + 1
+
         build_pile = self.game.building_piles[build_index]
         build_pile.append(card)
 
@@ -89,6 +93,10 @@ class Player(ABC):
 
     def play_stock_to_build(self, build_index):
         card = self.stock_pile.pop()
+
+        if card.face == 'S':
+            card.value = self.game.get_top_of_build_pile(build_index) + 1
+
         build_pile = self.game.building_piles[build_index]
         build_pile.append(card)
 

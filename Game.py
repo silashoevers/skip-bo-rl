@@ -45,6 +45,10 @@ class Game:
                 if card.face == 'S':
                     card.value = 0
             self.removed_pile = []
+        if len(self.draw_pile) == 0:
+            self.is_game_running = False
+            print("Can't draw card")
+            return Card(-1)
         return self.draw_pile.pop()
 
     def get_top_of_build_pile(self, pile_index):
@@ -66,10 +70,12 @@ class Game:
             print(f"It's the turn of player number {current_player_index}. Go wild.")
             self.players[current_player_index].play()
             current_player_index = (current_player_index + 1) % len(self.players)
-        # Check who was the winner based on who has an empty stock pile
-        winning_player_index = [player_index for player_index, player in enumerate(self.players) if len(player.stock_pile) == 0][0]
-        print(f"Player number {winning_player_index} has won. Congratulations!")
-        return
+        if len(self.draw_pile) == 0:
+            print("Everyone lost")
+        else:
+            # Check who was the winner based on who has an empty stock pile
+            winning_player_index = [player_index for player_index, player in enumerate(self.players) if len(player.stock_pile) == 0][0]
+            print(f"Player number {winning_player_index} has won. Congratulations!")
 
 
 if __name__ == '__main__':
