@@ -1,9 +1,13 @@
+import math
+import random
+from abc import ABC, abstractmethod
+
 from Player import Player
 
 import torch
 from torch import nn
 
-class ComputerPlayer(Player):
+class ComputerPlayer(Player, ABC):
     def __init__(self, game, model, device):
         super().__init__(game)
         self.mask = torch.zeros(
@@ -26,6 +30,13 @@ class ComputerPlayer(Player):
         self.device = device
         self.model = model
         self.num_piles = 4
+
+        self.EPS_START = 0.9
+        self.EPS_END = 0.05
+        self.EPS_DECAY = 1000
+        self.steps_done = 0
+
+        self.end_turn = False
 
     def compute_mask(self):
         self.mask.zero_()
@@ -68,48 +79,77 @@ class ComputerPlayer(Player):
             card = self.game.get_top_of_build_pile(build_pile)
             self.model_input[offset + 12 * build_pile + card] = 1
 
+
+    # Abstract methods to play actions and determine rewards during training
+    @abstractmethod
+    def reward_hand_to_build(self, card_face, build_index):
+        pass
+
+    @abstractmethod
+    def reward_hand_to_discard(self, card_face, discard_index):
+        pass
+
+    @abstractmethod
+    def reward_discard_to_build(self, discard_index, build_index):
+        pass
+
+    @abstractmethod
+    def reward_stock_to_build(self, build_index):
+        pass
+
+    def select_action(self, training):
+        self.compute_mask()
+        self.compute_model_input()
+
+        eps_threshold = self.EPS_END + (self.EPS_START - self.EPS_END) * math.exp(-self.steps_done / self.EPS_DECAY)
+        if training and random.random() < eps_threshold:
+            task = torch.multinomial(self.mask, 1)
+        else:
+            with torch.no_grad():
+                output = self.model(self.model_input)
+                masked_output = torch.where(self.mask==1, output, float("-inf"))
+                task = masked_output.argmax().item()
+
+        if task < 13 * 4:  # Hand to build
+            face = "S" if task // 4 == 12 else task // 4 + 1
+            build_pile_index = task % 4
+            if training:
+                self.reward_hand_to_build(face, build_pile_index)
+            else:
+                self.play_hand_to_build(face, build_pile_index)
+        elif 13 * 4 <= task < 13 * 4 + 13 * 4:  # Hand to discard
+            task -= 13 * 4
+            face = "S" if task // 4 == 12 else task // 4 + 1
+            discard_pile_index = task % 4
+            if training:
+                self.reward_hand_to_discard(face, discard_pile_index)
+            else:
+                self.play_hand_to_discard(face, discard_pile_index)
+            self.end_turn = True
+        elif 13 * 4 + 13 * 4 <= task < 13 * 4 + 13 * 4 + 4 * 4:  # Discard to build
+            task -= 13 * 4 + 13 * 4
+            discard_pile_index, build_pile_index = task // 4, task % 4
+            if training:
+                self.reward_discard_to_build(discard_pile_index, build_pile_index)
+            else:
+                self.play_discard_to_build(discard_pile_index, build_pile_index)
+        else:  # Stock to build
+            task -= 13 * 4 + 13 * 4 + 4 * 4
+            if training:
+                self.reward_stock_to_build(task)
+            else:
+                self.play_stock_to_build(task)
+            if len(self.stock_pile) < 1:
+                self.game.is_game_running = False
+
+
     def play(self):
         self.fill_hand()
 
-        end_turn = False
-        while not end_turn and self.game.is_game_running:
+        self.end_turn = False
+        while not self.end_turn and self.game.is_game_running:
             self.print_game_state()  # TODO: Enable this with a DEBUG flag
-            # Assuming for now no exploration, just doing what the model says.
-            output = self.model(self.model_input)
-
-            # The assumption is made that recomputing the complete mask and input is fast enough (5ms for computing mask)
-            self.compute_mask()
-            self.compute_model_input()
-
-            # Mask the output: Only moves that are legal keep their value in the output of the model
-            masked_output = output * self.mask
-            # TODO: Add Softmax (either before or after mask)
-            task = masked_output.argmax().item()  # Vector index maps to the intended move
-            if task < 13 * 4:  # Hand to build
-                face = "S" if task // 4 == 12 else task // 4 + 1
-                build_pile_index = task % 4
-                print(f"Hand to build: {face} to {build_pile_index}")
-                self.play_hand_to_build(face, build_pile_index)
-            elif 13 * 4 <= task < 13 * 4 + 13 * 4:  # Hand to discard
-                task -= 13 * 4
-                face = "S" if task // 4 == 12 else task // 4 + 1
-                discard_pile_index = task % 4
-                print(f"Hand to discard: {face} to {discard_pile_index}")
-                self.play_hand_to_discard(face, discard_pile_index)
-                end_turn = True
-            elif 13 * 4 + 13 * 4 <= task < 13 * 4 + 13 * 4 + 4 * 4:  # Discard to build
-                task -= 13 * 4 + 13 * 4
-                discard_pile_index, build_pile_index = task // 4, task % 4
-                print(f"Discard to build: {discard_pile_index}, {build_pile_index}")
-                self.play_discard_to_build(discard_pile_index, build_pile_index)
-            else:  # Stock to build
-                task -= 13 * 4 + 13 * 4 + 4 * 4
-                print(f"Stock to build: {task}")
-                self.play_stock_to_build(task)
-                if len(self.stock_pile) < 1:
-                    print("Your stock pile is empty, congratulations!")
-                    self.game.is_game_running = False
-                    return
+            self.select_action(training=False)
 
     def pretty_print_mask(self):
         print("Mask:")
