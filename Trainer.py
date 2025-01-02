@@ -33,6 +33,7 @@ BATCH_SIZE = 128
 GAMMA = 0.99
 
 class Trainer:
+    # Based on https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
     def __init__(self, device):
         self.memory = ReplayMemory(10000)
         self.policy_net = NeuralNetwork(126, 124, 2, 500).to(device)

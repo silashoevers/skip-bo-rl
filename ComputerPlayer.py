@@ -98,6 +98,10 @@ class ComputerPlayer(Player, ABC):
         pass
 
     def select_action(self, training):
+        """
+        Returns reward if training is enabled
+        """
+        reward = 0  # Justin Case
         self.compute_mask()
         self.compute_model_input()
 
@@ -114,7 +118,7 @@ class ComputerPlayer(Player, ABC):
             face = "S" if task // 4 == 12 else task // 4 + 1
             build_pile_index = task % 4
             if training:
-                self.reward_hand_to_build(face, build_pile_index)
+                reward = self.reward_hand_to_build(face, build_pile_index)
             else:
                 self.play_hand_to_build(face, build_pile_index)
         elif 13 * 4 <= task < 13 * 4 + 13 * 4:  # Hand to discard
@@ -122,7 +126,7 @@ class ComputerPlayer(Player, ABC):
             face = "S" if task // 4 == 12 else task // 4 + 1
             discard_pile_index = task % 4
             if training:
-                self.reward_hand_to_discard(face, discard_pile_index)
+                reward = self.reward_hand_to_discard(face, discard_pile_index)
             else:
                 self.play_hand_to_discard(face, discard_pile_index)
             self.end_turn = True
@@ -130,17 +134,20 @@ class ComputerPlayer(Player, ABC):
             task -= 13 * 4 + 13 * 4
             discard_pile_index, build_pile_index = task // 4, task % 4
             if training:
-                self.reward_discard_to_build(discard_pile_index, build_pile_index)
+                reward = self.reward_discard_to_build(discard_pile_index, build_pile_index)
             else:
                 self.play_discard_to_build(discard_pile_index, build_pile_index)
         else:  # Stock to build
             task -= 13 * 4 + 13 * 4 + 4 * 4
             if training:
-                self.reward_stock_to_build(task)
+                reward = self.reward_stock_to_build(task)
             else:
                 self.play_stock_to_build(task)
             if len(self.stock_pile) < 1:
                 self.game.is_game_running = False
+
+        if training:
+            return reward
 
 
     def play(self):
@@ -208,7 +215,3 @@ class NeuralNetwork(nn.Module):
     def forward(self, x):
         logits = self.linear_relu_stack(x)  # Probabilities passed along the hidden layers
         return self.output_layer(logits)
-
-
-
-
