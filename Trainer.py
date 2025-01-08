@@ -10,6 +10,9 @@ import torch.optim as optim
 from tqdm.auto import tqdm
 
 from WinOnlyComputerPlayer import WinOnlyComputerPlayer
+from StockComputerPlayer import StockComputerPlayer
+from WinStockComputerPlayer import WinStockComputerPlayer
+from ComplexComputerPlayer import ComplexComputerPlayer
 
 
 class Experience(object):
@@ -36,7 +39,7 @@ class ReplayMemory(object):
 BATCH_SIZE = 128
 GAMMA = 0.99
 TAU = 0.005
-NUM_GAMES = 1_000
+NUM_GAMES = 100_000
 NUM_COMPUTER_PLAYERS = 2
 
 class Trainer:
@@ -117,6 +120,7 @@ class Trainer:
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    trainer = Trainer(WinOnlyComputerPlayer, device)
+    # TODO add way to pick which model to train/train multiple models at the same time on different devices?
+    trainer = Trainer(WinStockComputerPlayer, device)
 
     trainer.train()
