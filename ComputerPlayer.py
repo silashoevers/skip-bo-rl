@@ -101,7 +101,7 @@ class ComputerPlayer(Player, ABC):
     def reward_stock_to_build(self, build_index):
         pass
 
-    def select_action(self, training):
+    def select_action(self, training, verbose=False):
         """
         Returns reward if training is enabled
         """
@@ -114,8 +114,11 @@ class ComputerPlayer(Player, ABC):
             with torch.no_grad():
                 output = self.model(self.model_input)
                 masked_output = torch.where(self.mask==1, output, float("-inf"))
+                if verbose:
+                    self.pretty_print_output(masked_output)
                 action = masked_output.argmax().item()
 
+        selected_action = action
         if action < 13 * 4:  # Hand to build
             face = "S" if action // 4 == 12 else action // 4 + 1
             build_pile_index = action % 4
@@ -149,7 +152,7 @@ class ComputerPlayer(Player, ABC):
                 self.game.is_game_running = False
 
         if training:
-            return action, reward
+            return selected_action, reward
 
 
     def play(self):
@@ -160,7 +163,7 @@ class ComputerPlayer(Player, ABC):
             self.compute_mask()
             self.compute_model_input()
             self.print_game_state()  # TODO: Enable this with a DEBUG flag
-            self.select_action(training=False)
+            self.select_action(training=False, verbose=True)
 
     def pretty_print_mask(self):
         print("Mask:")
