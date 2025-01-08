@@ -114,7 +114,6 @@ class ComputerPlayer(Player, ABC):
             with torch.no_grad():
                 output = self.model(self.model_input)
                 masked_output = torch.where(self.mask==1, output, float("-inf"))
-                self.pretty_print_output(masked_output)
                 action = masked_output.argmax().item()
 
         if action < 13 * 4:  # Hand to build
