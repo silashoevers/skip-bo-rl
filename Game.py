@@ -90,6 +90,9 @@ class Game:
 if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     num_human_players = int(input('How many human players?\n'))
+    # Hack to allow training with older Python version
+    if num_human_players > 0:
+        from HumanPlayer import HumanPlayer
     num_computer_players = int(input('How many computer players?\n'))
     num_stock_cards = int(input('How many stock cards do you want to play with? (Default = 30)\n').strip() or "30")
     model_name = input('Please enter a model name:\n')
