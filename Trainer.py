@@ -2,10 +2,15 @@ from collections import deque
 import random
 
 from ComputerPlayer import ComputerPlayer, NeuralNetwork
+from Game import Game
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from tqdm.auto import tqdm
+
+from WinOnlyComputerPlayer import WinOnlyComputerPlayer
+
 
 class Experience(object):
     def __init__(self, state, action, reward, next_state):
@@ -18,8 +23,7 @@ class ReplayMemory(object):
     def __init__(self, capacity):
         self.memory = deque(maxlen=capacity)
 
-    def add(self, state, action, reward, next_state):
-        experience = Experience(state, action, reward, next_state)
+    def add(self, experience):
         self.memory.append(experience)
 
     def sample(self, batch_size):
@@ -31,13 +35,18 @@ class ReplayMemory(object):
 
 BATCH_SIZE = 128
 GAMMA = 0.99
+TAU = 0.005
+NUM_GAMES = 1_000
+NUM_COMPUTER_PLAYERS = 2
 
 class Trainer:
     # Based on https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
-    def __init__(self, device):
-        self.memory = ReplayMemory(10000)
-        self.policy_net = NeuralNetwork(126, 124, 2, 500).to(device)
-        self.target_net = NeuralNetwork(126, 124, 2, 500).to(device)
+    def __init__(self, computer_type, device):
+        self.computer_type = computer_type
+        self.device = device
+        self.memory = ReplayMemory(10_000)
+        self.policy_net = NeuralNetwork(127, 124, 2, 500).to(device)
+        self.target_net = NeuralNetwork(127, 124, 2, 500).to(device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
         self.optimizer = optim.Adam(self.policy_net.parameters())
@@ -48,8 +57,8 @@ class Trainer:
             return
 
         experiences = self.memory.sample(BATCH_SIZE)
-        in_states = torch.stack([experience.in_state for experience in experiences], dim=0)
-        actions = torch.tensor([experience.action for experience in experiences], dtype=torch.long)
+        in_states = torch.stack([experience.state for experience in experiences], dim=0)
+        actions = torch.stack([torch.tensor([experience.action], dtype=torch.long) for experience in experiences])
         rewards = torch.tensor([experience.reward for experience in experiences], dtype=torch.float)
 
         non_final = torch.tensor([experience.next_state is not None for experience in experiences], dtype=torch.bool)
@@ -61,7 +70,8 @@ class Trainer:
             next_state_rewards[non_final] = self.target_net(non_final_states).max(1).values
         expected_rewards = rewards + GAMMA * next_state_rewards
 
-        pred_rewards = self.policy_net(in_states).gather(1, actions)
+        output = self.policy_net(in_states)
+        pred_rewards = output.gather(1, actions).squeeze()
 
         self.optimizer.zero_grad()
         loss = self.loss_fn(pred_rewards, expected_rewards)
@@ -69,5 +79,44 @@ class Trainer:
         self.optimizer.step()
 
     def train(self):
-        # TODO: Write
-        pass
+        for episode in tqdm(range(NUM_GAMES)):
+            game = Game(num_human_players=0, num_computer_players=NUM_COMPUTER_PLAYERS, model=self.policy_net,
+                        computer_type=self.computer_type, device=self.device, num_stock_cards=1)
+            last_experience = [None for _ in range(NUM_COMPUTER_PLAYERS)]
+            while game.is_game_running:
+                for current_player_index in range(NUM_COMPUTER_PLAYERS):
+                    current_player = game.players[current_player_index]
+                    current_player.end_turn = False
+                    while not current_player.end_turn and game.is_game_running:
+                        current_player.fill_hand()
+                        current_player.compute_mask()
+                        current_player.compute_model_input()
+                        if last_experience[current_player_index] is not None:
+                            last_experience[current_player_index].next_state = current_player.model_input
+                            self.memory.add(last_experience[current_player_index])
+                        in_state = current_player.model_input
+                        action, reward = current_player.select_action(training=True)
+                        last_experience[current_player_index] = Experience(in_state, action, reward, None)
+
+                        self.optimize_model()
+
+                        target_net_state_dict = self.target_net.state_dict()
+                        policy_net_state_dict = self.policy_net.state_dict()
+                        for key in policy_net_state_dict:
+                            target_net_state_dict[key] = policy_net_state_dict[key] * TAU + target_net_state_dict[
+                                key] * (1 - TAU)
+                        self.target_net.load_state_dict(target_net_state_dict)
+            for current_player_index in range(NUM_COMPUTER_PLAYERS):
+                current_player = game.players[current_player_index]
+                if len(current_player.stock_pile) == 0:
+                    self.memory.add(last_experience[current_player_index])
+            if (episode + 1) % 100 == 0:
+                model_name = str(game.players[0])
+                torch.save(self.policy_net.state_dict(), f"models/{model_name}_{episode+1}.pth")
+
+
+if __name__ == "__main__":
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    trainer = Trainer(WinOnlyComputerPlayer, device)
+
+    trainer.train()

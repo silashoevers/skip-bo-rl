@@ -24,6 +24,7 @@ class ComputerPlayer(Player, ABC):
             + 13  # One hot encoding for the stock pile # here again, card 1 goes to offset 0
             + 12 * 4
             # One hot encodings for each build pile # HERE IT DOESN'T, we have 12 possible values 0 means that no card is on the stack, max values is 11
+            + 1 # Number of stock cards
             # Could be expanded for Opponents
         ).to(device)
 
@@ -79,6 +80,9 @@ class ComputerPlayer(Player, ABC):
             card = self.game.get_top_of_build_pile(build_pile)
             self.model_input[offset + 12 * build_pile + card] = 1
 
+        offset = 13 + 4 * 13 + 13 + 12 * 4
+        self.model_input[offset] = len(self.stock_pile)
+
 
     # Abstract methods to play actions and determine rewards during training
     @abstractmethod
@@ -102,52 +106,51 @@ class ComputerPlayer(Player, ABC):
         Returns reward if training is enabled
         """
         reward = 0  # Justin Case
-        self.compute_mask()
-        self.compute_model_input()
 
         eps_threshold = self.EPS_END + (self.EPS_START - self.EPS_END) * math.exp(-self.steps_done / self.EPS_DECAY)
         if training and random.random() < eps_threshold:
-            task = torch.multinomial(self.mask, 1)
+            action = torch.multinomial(self.mask, 1).item()
         else:
             with torch.no_grad():
                 output = self.model(self.model_input)
                 masked_output = torch.where(self.mask==1, output, float("-inf"))
-                task = masked_output.argmax().item()
+                self.pretty_print_output(masked_output)
+                action = masked_output.argmax().item()
 
-        if task < 13 * 4:  # Hand to build
-            face = "S" if task // 4 == 12 else task // 4 + 1
-            build_pile_index = task % 4
+        if action < 13 * 4:  # Hand to build
+            face = "S" if action // 4 == 12 else action // 4 + 1
+            build_pile_index = action % 4
             if training:
                 reward = self.reward_hand_to_build(face, build_pile_index)
             else:
                 self.play_hand_to_build(face, build_pile_index)
-        elif 13 * 4 <= task < 13 * 4 + 13 * 4:  # Hand to discard
-            task -= 13 * 4
-            face = "S" if task // 4 == 12 else task // 4 + 1
-            discard_pile_index = task % 4
+        elif 13 * 4 <= action < 13 * 4 + 13 * 4:  # Hand to discard
+            action -= 13 * 4
+            face = "S" if action // 4 == 12 else action // 4 + 1
+            discard_pile_index = action % 4
             if training:
                 reward = self.reward_hand_to_discard(face, discard_pile_index)
             else:
                 self.play_hand_to_discard(face, discard_pile_index)
             self.end_turn = True
-        elif 13 * 4 + 13 * 4 <= task < 13 * 4 + 13 * 4 + 4 * 4:  # Discard to build
-            task -= 13 * 4 + 13 * 4
-            discard_pile_index, build_pile_index = task // 4, task % 4
+        elif 13 * 4 + 13 * 4 <= action < 13 * 4 + 13 * 4 + 4 * 4:  # Discard to build
+            action -= 13 * 4 + 13 * 4
+            discard_pile_index, build_pile_index = action // 4, action % 4
             if training:
                 reward = self.reward_discard_to_build(discard_pile_index, build_pile_index)
             else:
                 self.play_discard_to_build(discard_pile_index, build_pile_index)
         else:  # Stock to build
-            task -= 13 * 4 + 13 * 4 + 4 * 4
+            action -= 13 * 4 + 13 * 4 + 4 * 4
             if training:
-                reward = self.reward_stock_to_build(task)
+                reward = self.reward_stock_to_build(action)
             else:
-                self.play_stock_to_build(task)
+                self.play_stock_to_build(action)
             if len(self.stock_pile) < 1:
                 self.game.is_game_running = False
 
         if training:
-            return reward
+            return action, reward
 
 
     def play(self):
@@ -155,6 +158,8 @@ class ComputerPlayer(Player, ABC):
 
         self.end_turn = False
         while not self.end_turn and self.game.is_game_running:
+            self.compute_mask()
+            self.compute_model_input()
             self.print_game_state()  # TODO: Enable this with a DEBUG flag
             self.select_action(training=False)
 
@@ -180,6 +185,28 @@ class ComputerPlayer(Player, ABC):
         print("-> Build index")
         print(self.mask[13*4+13*4+4*4:])
 
+    def pretty_print_output(self, output):
+        print("Ouput:")
+
+        print("Hand to build:")
+        print("-> Build index")
+        print("↓ Card")
+        print(output[:13*4].view(13, 4))
+
+        print("Hand to discard:")
+        print("-> Discard index")
+        print("↓ Card")
+        print(output[13*4:13*4+13*4].view(13, 4))
+
+        print("Discard to Build:")
+        print("-> Discard index")
+        print("↓ Build index")
+        print(output[13*4+13*4:13*4+13*4+4*4].view(4,4))
+
+        print("Stock to build:")
+        print("-> Build index")
+        print(output[13*4+13*4+4*4:])
+
     def pretty_print_input(self):
         print("Input:")
 
@@ -199,7 +226,10 @@ class ComputerPlayer(Player, ABC):
         print("Build piles:")
         print("-> Card")
         print("↓ Build Pile")
-        print(self.model_input[13+13*4+13:].view(4,12))
+        print(self.model_input[13+13*4+13:13+13*4+13+12*4].view(4,12))
+
+        print("Number of stock cards:")
+        print(self.model_input[13+13*4+13+12*4])
 
 class NeuralNetwork(nn.Module):
     def __init__(self, dim_in, dim_out, num_hidden_layers, dim_hidden):

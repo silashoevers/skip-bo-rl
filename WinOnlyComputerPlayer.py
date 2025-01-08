@@ -19,3 +19,6 @@ class WinOnlyComputerPlayer(ComputerPlayer):
         if len(self.stock_pile) < 1:
             reward = 1
         return reward
+
+    def __str__(self):
+        return "win_only_computer_player"

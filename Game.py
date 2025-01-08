@@ -1,19 +1,29 @@
+import os
 import random
 
 from Player import *
 from ComputerPlayer import *
 from Card import *
+from WinOnlyComputerPlayer import WinOnlyComputerPlayer
 
 
 class Game:
-    def __init__(self, num_human_players, num_computer_players, num_stock_cards=30):
+    def __init__(self, num_human_players, num_computer_players, model, computer_type, device, num_stock_cards=30):
+        """
+        :param num_human_players:
+        :param num_computer_players:
+        :param model: Pytorch model
+        :param computer_type: Specific subclass of ComputerPlayer
+        :param device:
+        :param num_stock_cards:
+        """
         self.players = []
+        if model is None:
+            model = NeuralNetwork(127, 124, 4, 500).to(device)
         for _ in range(num_human_players):
             self.players.append(HumanPlayer(self))
         for _ in range(num_computer_players):
-            device = torch.device("cpu")
-            # TODO: Write simple model with random weights to test whether dumb dumb computer player can play
-            self.players.append(ComputerPlayer(self, model=NeuralNetwork(126, 124, 2, 500), device=device))
+            self.players.append(computer_type(self, model=model, device=device))
         random.shuffle(self.players)
 
         self.draw_pile = [Card(i) for i in range(1, 13) for _ in range(12)] + [Card('S') for _ in range(18)]
@@ -47,7 +57,6 @@ class Game:
             self.removed_pile = []
         if len(self.draw_pile) == 0:
             self.is_game_running = False
-            print("Can't draw card")
             return Card(-1)
         return self.draw_pile.pop()
 
@@ -79,10 +88,15 @@ class Game:
 
 
 if __name__ == '__main__':
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     num_human_players = int(input('How many human players?\n'))
     num_computer_players = int(input('How many computer players?\n'))
     num_stock_cards = int(input('How many stock cards do you want to play with? (Default = 30)\n').strip() or "30")
-    game = Game(num_human_players, num_computer_players, num_stock_cards)
+    model_name = input('Please enter a model name:\n')
+    model = NeuralNetwork(127, 124, 2, 500).to(device)
+    model.load_state_dict(torch.load(os.path.join("models", model_name), weights_only=True))
+    model.eval()
+    game = Game(num_human_players, num_computer_players, model, WinOnlyComputerPlayer, device, num_stock_cards)
 
     game.start()
 
