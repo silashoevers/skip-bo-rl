@@ -49,8 +49,8 @@ class Trainer:
         self.computer_type = computer_type
         self.device = device
         self.memory = ReplayMemory(10_000)
-        self.policy_net = NeuralNetwork(127, 124, 2, 500).to(device)
-        self.target_net = NeuralNetwork(127, 124, 2, 500).to(device)
+        self.policy_net = NeuralNetwork(127, 124, 3, 500).to(device)
+        self.target_net = NeuralNetwork(127, 124, 3, 500).to(device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
         self.optimizer = optim.Adam(self.policy_net.parameters())
