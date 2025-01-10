@@ -101,12 +101,7 @@ class ComputerPlayer(Player, ABC):
     def reward_stock_to_build(self, build_index):
         pass
 
-    def select_action(self, training, verbose=False):
-        """
-        Returns reward if training is enabled
-        """
-        reward = 0  # Justin Case
-
+    def select_action(self, training, verbose):
         eps_threshold = self.EPS_END + (self.EPS_START - self.EPS_END) * math.exp(-self.steps_done / self.EPS_DECAY)
         if training and random.random() < eps_threshold:
             action = torch.multinomial(self.mask, 1).item()
@@ -117,6 +112,15 @@ class ComputerPlayer(Player, ABC):
                 if verbose:
                     self.pretty_print_output(masked_output)
                 action = masked_output.argmax().item()
+        return action
+
+    def select_and_do_action(self, training, verbose=False):
+        """
+        Returns reward if training is enabled
+        """
+        reward = 0  # Justin Case
+
+        action = self.select_action(training, verbose)
 
         selected_action = action
         if action < 13 * 4:  # Hand to build
@@ -154,7 +158,6 @@ class ComputerPlayer(Player, ABC):
         if training:
             return selected_action, reward
 
-
     def play(self):
         self.fill_hand()
 
@@ -163,7 +166,7 @@ class ComputerPlayer(Player, ABC):
             self.compute_mask()
             self.compute_model_input()
             self.print_game_state()  # TODO: Enable this with a DEBUG flag
-            self.select_action(training=False, verbose=True)
+            self.select_and_do_action(training=False, verbose=True)
 
     def pretty_print_mask(self):
         print("Mask:")
