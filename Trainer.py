@@ -12,6 +12,9 @@ from tqdm.auto import tqdm
 from WinOnlyComputerPlayer import WinOnlyComputerPlayer
 from StockComputerPlayer import StockComputerPlayer
 from WinStockComputerPlayer import WinStockComputerPlayer
+from DiscardComputerPlayer import DiscardComputerPlayer
+from DiscardStockComputerPlayer import DiscardStockComputerPlayer
+from DiscardWinComputerPlayer import DiscardWinComputerPlayer
 from ComplexComputerPlayer import ComplexComputerPlayer
 
 BATCH_SIZE = 128
@@ -124,14 +127,15 @@ class Trainer:
                 current_player = game.players[current_player_index]
                 if len(current_player.stock_pile) == 0:
                     self.memory.add(last_experience[current_player_index])
-            if (episode + 1) % 100 == 0:
+            if (episode + 1) % (NUM_GAMES//10) == 0:
                 model_name = str(game.players[0])
                 torch.save(self.policy_net.state_dict(), f"models/{model_name}_{episode + 1}.pth")
 
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # TODO add way to pick which model to train/train multiple models at the same time on different devices?
-    trainer = Trainer(ComplexComputerPlayer, device)
 
-    trainer.train()
+    classes = [StockComputerPlayer, WinOnlyComputerPlayer, WinStockComputerPlayer, DiscardComputerPlayer, DiscardWinComputerPlayer, DiscardWinComputerPlayer]
+    for class_ in classes:
+        trainer = Trainer(class_, device)
+        trainer.train()
