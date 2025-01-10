@@ -16,11 +16,12 @@ from ComplexComputerPlayer import ComplexComputerPlayer
 
 
 class Experience(object):
-    def __init__(self, state, action, reward, next_state):
+    def __init__(self, state, action, reward, next_state, next_mask):
         self.state = state
         self.action = action
         self.reward = reward
         self.next_state = next_state # can be None if there is no next state as the game ended
+        self.next_mask = next_mask
 
 class ReplayMemory(object):
     def __init__(self, capacity):
@@ -39,7 +40,7 @@ class ReplayMemory(object):
 BATCH_SIZE = 128
 GAMMA = 0.99
 TAU = 0.005
-NUM_GAMES = 100_000
+NUM_GAMES = 10_000
 NUM_COMPUTER_PLAYERS = 2
 
 class Trainer:
@@ -67,10 +68,14 @@ class Trainer:
         non_final = torch.tensor([experience.next_state is not None for experience in experiences], dtype=torch.bool, device=self.device)
         non_final_states = torch.stack(
             [experience.next_state for experience in experiences if experience.next_state is not None], dim=0)
+        non_final_masks = torch.stack(
+            [experience.next_mask for experience in experiences if experience.next_state is not None], dim=0)
 
         next_state_rewards = torch.zeros(BATCH_SIZE, dtype=torch.float, device=self.device)
         with torch.no_grad():
-            next_state_rewards[non_final] = self.target_net(non_final_states).max(1).values
+            unmasked_next_rewards = self.target_net(non_final_states)
+            masked_next_rewards = torch.where(non_final_masks==1, unmasked_next_rewards, float("-inf"))
+            next_state_rewards[non_final] = masked_next_rewards.max(1).values
         expected_rewards = rewards + GAMMA * next_state_rewards
 
         output = self.policy_net(in_states)
@@ -84,7 +89,7 @@ class Trainer:
     def train(self):
         for episode in tqdm(range(NUM_GAMES)):
             game = Game(num_human_players=0, num_computer_players=NUM_COMPUTER_PLAYERS, model=self.policy_net,
-                        computer_type=self.computer_type, device=self.device, num_stock_cards=1)
+                        computer_type=self.computer_type, device=self.device, num_stock_cards=30)
             last_experience = [None for _ in range(NUM_COMPUTER_PLAYERS)]
             while game.is_game_running:
                 for current_player_index in range(NUM_COMPUTER_PLAYERS):
@@ -96,10 +101,11 @@ class Trainer:
                         current_player.compute_model_input()
                         if last_experience[current_player_index] is not None:
                             last_experience[current_player_index].next_state = current_player.model_input
+                            last_experience[current_player_index].next_mask = current_player.mask
                             self.memory.add(last_experience[current_player_index])
                         in_state = current_player.model_input
                         action, reward = current_player.select_action(training=True, verbose=False)
-                        last_experience[current_player_index] = Experience(in_state, action, reward, None)
+                        last_experience[current_player_index] = Experience(in_state, action, reward, None, None)
 
                         self.optimize_model()
 
@@ -121,6 +127,6 @@ class Trainer:
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # TODO add way to pick which model to train/train multiple models at the same time on different devices?
-    trainer = Trainer(WinStockComputerPlayer, device)
+    trainer = Trainer(StockComputerPlayer, device)
 
     trainer.train()
