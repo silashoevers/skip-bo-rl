@@ -14,7 +14,7 @@ class ComplexComputerPlayer(ComputerPlayer):
         return reward
 
     def reward_hand_to_build(self, card_face, build_index):
-        reward = 0.5
+        reward = 0.3
         self.play_hand_to_build(card_face, build_index)
         # TODO write rewards
         return reward
@@ -23,7 +23,7 @@ class ComplexComputerPlayer(ComputerPlayer):
         reward = 0.7
         self.play_stock_to_build(build_index)
         if len(self.stock_pile) < 1:
-            reward += 1
+            reward += 100
         #TODO write rewards
         return reward
 

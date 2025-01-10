@@ -8,11 +8,12 @@ from WinOnlyComputerPlayer import WinOnlyComputerPlayer
 
 
 class Game:
+
     def __init__(self, num_human_players, num_computer_players, model, computer_type, device, num_stock_cards=30):
         """
         :param num_human_players:
         :param num_computer_players:
-        :param model: Pytorch model
+        :param model: Pytorch model(s)
         :param computer_type: Specific subclass of ComputerPlayer
         :param device:
         :param num_stock_cards:
@@ -20,10 +21,17 @@ class Game:
         self.players = []
         if model is None:
             model = NeuralNetwork(127, 124, 4, 500).to(device)
+        if isinstance(model,list):
+            assert len(model) == len(num_computer_players)
+            assert len(computer_type) == len(num_computer_players)
+            for i in range(num_computer_players):
+                self.players.append(computer_type[i](self, model=model[i], device=device))
+        else:
+            for _ in range(num_computer_players):
+                self.players.append(computer_type(self, model=model, device=device))
+
         for _ in range(num_human_players):
             self.players.append(HumanPlayer(self))
-        for _ in range(num_computer_players):
-            self.players.append(computer_type(self, model=model, device=device))
         random.shuffle(self.players)
 
         self.draw_pile = [Card(i) for i in range(1, 13) for _ in range(12)] + [Card('S') for _ in range(18)]
