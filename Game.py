@@ -22,8 +22,8 @@ class Game:
         if model is None:
             model = NeuralNetwork(127, 124, 4, 500).to(device)
         if isinstance(model,list):
-            assert len(model) == len(num_computer_players)
-            assert len(computer_type) == len(num_computer_players)
+            assert len(model) == num_computer_players
+            assert len(computer_type) == num_computer_players
             for i in range(num_computer_players):
                 self.players.append(computer_type[i](self, model=model[i], device=device))
         else:

@@ -165,8 +165,8 @@ class ComputerPlayer(Player, ABC):
         while not self.end_turn and self.game.is_game_running:
             self.compute_mask()
             self.compute_model_input()
-            self.print_game_state()  # TODO: Enable this with a DEBUG flag
-            self.select_and_do_action(training=False, verbose=True)
+            # self.print_game_state()  # TODO: Enable this with a DEBUG flag
+            self.select_and_do_action(training=False, verbose=False)
 
     def pretty_print_mask(self):
         print("Mask:")
