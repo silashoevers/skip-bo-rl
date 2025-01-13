@@ -1,8 +1,10 @@
+import datetime
 import itertools
 import os
 
 import torch
 from tqdm import tqdm
+import logging
 
 from ComputerPlayer import NeuralNetwork
 from Game import Game
@@ -22,19 +24,23 @@ MODELS_TO_TEST = ['complex_computer_player_10000.pth',
 
 
 class Tester:
-    def __init__(self, computers, device_used, models, names):
+    def __init__(self, computers, device_used, models, names, num_comp_players=NUM_COMPUTER_PLAYERS,
+                 num_cards=NUM_CARDS, num_games=NUM_GAMES):
         self.computer_types = computers
         self.device = device_used
         self.models = models
         self.names = names
+        self.num_comp_players = num_comp_players
+        self.num_cards = num_cards
+        self.num_games = num_games
 
     def test(self):
         game_winners = {key: 0 for key in self.names}
         game_winners['lost'] = 0
-        for _ in range(NUM_GAMES):
-            game = Game(num_human_players=0, num_computer_players=NUM_COMPUTER_PLAYERS, model=self.models,
+        for _ in range(self.num_games):
+            game = Game(num_human_players=0, num_computer_players=self.num_comp_players, model=self.models,
                         names=self.names, computer_type=self.computer_types, device=self.device,
-                        num_stock_cards=NUM_CARDS)
+                        num_stock_cards=self.num_cards)
             current_player_index = 0
             while game.is_game_running:
                 game.players[current_player_index].play()
@@ -48,29 +54,46 @@ class Tester:
         return game_winners
 
 
-if __name__ == "__main__":
+def run_tests(test_these_models=MODELS_TO_TEST, num_comp_players=NUM_COMPUTER_PLAYERS,
+              num_cards=NUM_CARDS, num_games=NUM_GAMES):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logname = os.path.join('TestResults', ("cageMatchTest"+datetime.datetime.now().strftime("%d%m%Y-%H%M%S") + ".log"))
+    logging.basicConfig(filename=logname, format='%(asctime)s - %(levelname)s - %(message)s', filemode='w')
+    logger = logging.getLogger()
+    logger.setLevel(logging.NOTSET)
     print("loading models")
     models_to_test = []
-    computer_types = []  # only using one type of ComputerPlayer since the difference between players is their reward
     # structure for training
-    for model_name in tqdm(MODELS_TO_TEST):
+    logger.debug("Testing following models: ")
+    for model_name in tqdm(test_these_models):
         model = NeuralNetwork(127, 124, 3, 500).to(device)
         model.load_state_dict(torch.load(os.path.join('models', model_name), weights_only=True))
         model.eval()
         models_to_test.append((model, model_name))
+        logger.info(model_name)
     results = []
     print("Testing against randoms")
+    # only using one type of ComputerPlayer since the difference between players is their reward
+    logger.debug("vs Random tests")
     for model in tqdm(models_to_test):
-        tester = Tester(computers=[RandomComputerPlayer, WinOnlyComputerPlayer], device_used=device, models=['', model[0]], names=["Random",model[1]])
+        tester = Tester(computers=[RandomComputerPlayer, WinOnlyComputerPlayer], device_used=device,
+                        models=['', model[0]], names=["Random", model[1]], num_comp_players=num_comp_players,
+                        num_cards=num_cards, num_games=num_games)
         results.append(tester.test())
     for r in results:
-        print(r)
+        logger.info(r)
     print("Testing against each other")
     matches = list(itertools.combinations(models_to_test, 2))
-    matchResults = []
+    match_results = []
+    logger.debug("Cage match models")
     for match in tqdm(matches):
-        tester = Tester(computers=[WinOnlyComputerPlayer, WinOnlyComputerPlayer], device_used=device, models=[list(match)[0][0], list(match)[1][0]], names=[list(match)[0][1], list(match)[1][1]])
-        matchResults.append(tester.test())
-    for m in matchResults:
-        print(m)
+        tester = Tester(computers=[WinOnlyComputerPlayer, WinOnlyComputerPlayer], device_used=device,
+                        models=[list(match)[0][0], list(match)[1][0]], names=[list(match)[0][1], list(match)[1][1]])
+        match_results.append(tester.test())
+    for m in match_results:
+        logger.info(m)
+    logger.debug("Tests finished")
+
+
+if __name__ == "__main__":
+    run_tests()
