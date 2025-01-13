@@ -7,8 +7,9 @@ from Player import Player
 import torch
 from torch import nn
 
+
 class ComputerPlayer(Player, ABC):
-    def __init__(self, game, model, device):
+    def __init__(self, game, model, device, name=""):
         super().__init__(game)
         self.mask = torch.zeros(
             # NOTE: IN THE MASK, ALL CARDS ARE MAPPED TO ONE LOWER, so card 1 is in offset 0 of the mask
@@ -24,7 +25,7 @@ class ComputerPlayer(Player, ABC):
             + 13  # One hot encoding for the stock pile # here again, card 1 goes to offset 0
             + 12 * 4
             # One hot encodings for each build pile # HERE IT DOESN'T, we have 12 possible values 0 means that no card is on the stack, max values is 11
-            + 1 # Number of stock cards
+            + 1  # Number of stock cards
             # Could be expanded for Opponents
         ).to(device)
 
@@ -38,6 +39,7 @@ class ComputerPlayer(Player, ABC):
         self.steps_done = 0
 
         self.end_turn = False
+        self.name = name
 
     def compute_mask(self):
         self.mask.zero_()
@@ -83,7 +85,6 @@ class ComputerPlayer(Player, ABC):
         offset = 13 + 4 * 13 + 13 + 12 * 4
         self.model_input[offset] = len(self.stock_pile)
 
-
     # Abstract methods to play actions and determine rewards during training
     @abstractmethod
     def reward_hand_to_build(self, card_face, build_index):
@@ -108,7 +109,7 @@ class ComputerPlayer(Player, ABC):
         else:
             with torch.no_grad():
                 output = self.model(self.model_input)
-                masked_output = torch.where(self.mask==1, output, float("-inf"))
+                masked_output = torch.where(self.mask == 1, output, float("-inf"))
                 if verbose:
                     self.pretty_print_output(masked_output)
                 action = masked_output.argmax().item()
@@ -174,21 +175,21 @@ class ComputerPlayer(Player, ABC):
         print("Hand to build:")
         print("-> Build index")
         print("↓ Card")
-        print(self.mask[:13*4].view(13, 4))
+        print(self.mask[:13 * 4].view(13, 4))
 
         print("Hand to discard:")
         print("-> Discard index")
         print("↓ Card")
-        print(self.mask[13*4:13*4+13*4].view(13, 4))
+        print(self.mask[13 * 4:13 * 4 + 13 * 4].view(13, 4))
 
         print("Discard to Build:")
         print("-> Discard index")
         print("↓ Build index")
-        print(self.mask[13*4+13*4:13*4+13*4+4*4].view(4,4))
+        print(self.mask[13 * 4 + 13 * 4:13 * 4 + 13 * 4 + 4 * 4].view(4, 4))
 
         print("Stock to build:")
         print("-> Build index")
-        print(self.mask[13*4+13*4+4*4:])
+        print(self.mask[13 * 4 + 13 * 4 + 4 * 4:])
 
     def pretty_print_output(self, output):
         print("Ouput:")
@@ -196,21 +197,21 @@ class ComputerPlayer(Player, ABC):
         print("Hand to build:")
         print("-> Build index")
         print("↓ Card")
-        print(output[:13*4].view(13, 4))
+        print(output[:13 * 4].view(13, 4))
 
         print("Hand to discard:")
         print("-> Discard index")
         print("↓ Card")
-        print(output[13*4:13*4+13*4].view(13, 4))
+        print(output[13 * 4:13 * 4 + 13 * 4].view(13, 4))
 
         print("Discard to Build:")
         print("-> Discard index")
         print("↓ Build index")
-        print(output[13*4+13*4:13*4+13*4+4*4].view(4,4))
+        print(output[13 * 4 + 13 * 4:13 * 4 + 13 * 4 + 4 * 4].view(4, 4))
 
         print("Stock to build:")
         print("-> Build index")
-        print(output[13*4+13*4+4*4:])
+        print(output[13 * 4 + 13 * 4 + 4 * 4:])
 
     def pretty_print_input(self):
         print("Input:")
@@ -222,19 +223,20 @@ class ComputerPlayer(Player, ABC):
         print("Discard piles:")
         print("-> Card")
         print("↓ Discard Pile")
-        print(self.model_input[13:13+13*4].view(4,13))
+        print(self.model_input[13:13 + 13 * 4].view(4, 13))
 
         print("Stock Card:")
         print("-> Card")
-        print(self.model_input[13+13*4:13+13*4+13])
+        print(self.model_input[13 + 13 * 4:13 + 13 * 4 + 13])
 
         print("Build piles:")
         print("-> Card")
         print("↓ Build Pile")
-        print(self.model_input[13+13*4+13:13+13*4+13+12*4].view(4,12))
+        print(self.model_input[13 + 13 * 4 + 13:13 + 13 * 4 + 13 + 12 * 4].view(4, 12))
 
         print("Number of stock cards:")
-        print(self.model_input[13+13*4+13+12*4])
+        print(self.model_input[13 + 13 * 4 + 13 + 12 * 4])
+
 
 class NeuralNetwork(nn.Module):
     def __init__(self, dim_in, dim_out, num_hidden_layers, dim_hidden):

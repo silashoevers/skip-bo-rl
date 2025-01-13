@@ -22,17 +22,19 @@ MODELS_TO_TEST = ['complex_computer_player_10000.pth',
 
 
 class Tester:
-    def __init__(self, computers, device_used, models):
+    def __init__(self, computers, device_used, models, names):
         self.computer_types = computers
         self.device = device_used
         self.models = models
+        self.names = names
 
     def test(self):
-        game_winners = {key: 0 for key in self.models}
+        game_winners = {key: 0 for key in self.names}
         game_winners['lost'] = 0
         for _ in range(NUM_GAMES):
             game = Game(num_human_players=0, num_computer_players=NUM_COMPUTER_PLAYERS, model=self.models,
-                        computer_type=self.computer_types, device=self.device, num_stock_cards=NUM_CARDS)
+                        names=self.names, computer_type=self.computer_types, device=self.device,
+                        num_stock_cards=NUM_CARDS)
             current_player_index = 0
             while game.is_game_running:
                 game.players[current_player_index].play()
@@ -42,7 +44,7 @@ class Tester:
             else:
                 # Check who was the winner based on who has an empty stock pile
                 winning_player = [player for player in game.players if len(player.stock_pile) == 0][0]
-                game_winners[winning_player.model] += 1
+                game_winners[winning_player.name] += 1
         return game_winners
 
 
@@ -56,17 +58,19 @@ if __name__ == "__main__":
         model = NeuralNetwork(127, 124, 3, 500).to(device)
         model.load_state_dict(torch.load(os.path.join('models', model_name), weights_only=True))
         model.eval()
-        models_to_test.append(model)
-    results = [] #TODO give models names so we can read the results
+        models_to_test.append((model, model_name))
+    results = []
     print("Testing against randoms")
     for model in tqdm(models_to_test):
-        tester = Tester([RandomComputerPlayer, WinOnlyComputerPlayer], device, ['', model])
+        tester = Tester(computers=[RandomComputerPlayer, WinOnlyComputerPlayer], device_used=device, models=['', model[0]], names=["Random",model[1]])
         results.append(tester.test())
-    print(results)
+    for r in results:
+        print(r)
     print("Testing against each other")
-    matches = itertools.combinations(models_to_test, 2)
-    matchResults = {key: None for key in matches}
+    matches = list(itertools.combinations(models_to_test, 2))
+    matchResults = []
     for match in tqdm(matches):
-        tester = Tester([WinOnlyComputerPlayer, WinOnlyComputerPlayer], device, list(match))
-        matchResults[match] = tester.test()
-    print(matchResults)
+        tester = Tester(computers=[WinOnlyComputerPlayer, WinOnlyComputerPlayer], device_used=device, models=[list(match)[0][0], list(match)[1][0]], names=[list(match)[0][1], list(match)[1][1]])
+        matchResults.append(tester.test())
+    for m in matchResults:
+        print(m)

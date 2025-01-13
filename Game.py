@@ -9,7 +9,7 @@ from WinOnlyComputerPlayer import WinOnlyComputerPlayer
 
 class Game:
 
-    def __init__(self, num_human_players, num_computer_players, model, computer_type, device, num_stock_cards=30):
+    def __init__(self, num_human_players, num_computer_players, model, names, computer_type, device, num_stock_cards=30):
         """
         :param num_human_players:
         :param num_computer_players:
@@ -25,7 +25,7 @@ class Game:
             assert len(model) == num_computer_players
             assert len(computer_type) == num_computer_players
             for i in range(num_computer_players):
-                self.players.append(computer_type[i](self, model=model[i], device=device))
+                self.players.append(computer_type[i](self, model=model[i], device=device, name=names[i]))
         else:
             for _ in range(num_computer_players):
                 self.players.append(computer_type(self, model=model, device=device))
