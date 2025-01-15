@@ -104,10 +104,12 @@ if __name__ == '__main__':
     num_computer_players = int(input('How many computer players?\n'))
     num_stock_cards = int(input('How many stock cards do you want to play with? (Default = 30)\n').strip() or "30")
     model_name = input('Please enter a model name:\n')
-    model = NeuralNetwork(127, 124, 2, 500).to(device)
+    model = NeuralNetwork(127, 124, 3, 500).to(device)
     model.load_state_dict(torch.load(os.path.join("models", model_name), weights_only=True))
     model.eval()
-    game = Game(num_human_players, num_computer_players, model, WinOnlyComputerPlayer, device, num_stock_cards)
+    names = [f'computer_player_{i}' for i in range(num_computer_players)]
+    names += [f'human_player_{i}' for i in range(num_human_players)]
+    game = Game(num_human_players, num_computer_players, model, names, WinOnlyComputerPlayer, device, num_stock_cards)
 
     game.start()
 
