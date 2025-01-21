@@ -228,7 +228,7 @@ class ComputerPlayer(Player):
         print(self.model_input[13 + 13 * 4 + 13 + 12 * 4])
 
     def __str__(self):
-        return self.model.__str__()
+        return self.reward_strategy.__str__()
 
 
 class NeuralNetwork(nn.Module):
