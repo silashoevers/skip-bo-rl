@@ -1,15 +1,18 @@
 import math
 import random
-from abc import ABC, abstractmethod
 
 from Player import Player
 
 import torch
 from torch import nn
 
+DIM_IN = 127
+DIM_OUT = 124
+HIDDEN_COUNT = 3
+DIM_HIDDEN = 500
 
-class ComputerPlayer(Player, ABC):
-    def __init__(self, game, model, device, name=""):
+class ComputerPlayer(Player):
+    def __init__(self, game, model, device, reward_strategy=None, name=""):
         super().__init__(game)
         self.mask = torch.zeros(
             # NOTE: IN THE MASK, ALL CARDS ARE MAPPED TO ONE LOWER, so card 1 is in offset 0 of the mask
@@ -28,6 +31,10 @@ class ComputerPlayer(Player, ABC):
             + 1  # Number of stock cards
             # Could be expanded for Opponents
         ).to(device)
+
+        self.reward_strategy = reward_strategy
+        if self.reward_strategy is not None:
+            self.reward_strategy.register_player(self)
 
         self.device = device
         self.model = model
@@ -85,23 +92,6 @@ class ComputerPlayer(Player, ABC):
         offset = 13 + 4 * 13 + 13 + 12 * 4
         self.model_input[offset] = len(self.stock_pile)
 
-    # Abstract methods to play actions and determine rewards during training
-    @abstractmethod
-    def reward_hand_to_build(self, card_face, build_index):
-        pass
-
-    @abstractmethod
-    def reward_hand_to_discard(self, card_face, discard_index):
-        pass
-
-    @abstractmethod
-    def reward_discard_to_build(self, discard_index, build_index):
-        pass
-
-    @abstractmethod
-    def reward_stock_to_build(self, build_index):
-        pass
-
     def select_action(self, training, verbose):
         eps_threshold = self.EPS_END + (self.EPS_START - self.EPS_END) * math.exp(-self.steps_done / self.EPS_DECAY)
         if training and random.random() < eps_threshold:
@@ -128,7 +118,7 @@ class ComputerPlayer(Player, ABC):
             face = "S" if action // 4 == 12 else action // 4 + 1
             build_pile_index = action % 4
             if training:
-                reward = self.reward_hand_to_build(face, build_pile_index)
+                reward = self.reward_strategy.reward_hand_to_build(face, build_pile_index)
             else:
                 self.play_hand_to_build(face, build_pile_index)
         elif 13 * 4 <= action < 13 * 4 + 13 * 4:  # Hand to discard
@@ -136,7 +126,7 @@ class ComputerPlayer(Player, ABC):
             face = "S" if action // 4 == 12 else action // 4 + 1
             discard_pile_index = action % 4
             if training:
-                reward = self.reward_hand_to_discard(face, discard_pile_index)
+                reward = self.reward_strategy.reward_hand_to_discard(face, discard_pile_index)
             else:
                 self.play_hand_to_discard(face, discard_pile_index)
             self.end_turn = True
@@ -144,13 +134,13 @@ class ComputerPlayer(Player, ABC):
             action -= 13 * 4 + 13 * 4
             discard_pile_index, build_pile_index = action // 4, action % 4
             if training:
-                reward = self.reward_discard_to_build(discard_pile_index, build_pile_index)
+                reward = self.reward_strategy.reward_discard_to_build(discard_pile_index, build_pile_index)
             else:
                 self.play_discard_to_build(discard_pile_index, build_pile_index)
         else:  # Stock to build
             action -= 13 * 4 + 13 * 4 + 4 * 4
             if training:
-                reward = self.reward_stock_to_build(action)
+                reward = self.reward_strategy.reward_stock_to_build(action)
             else:
                 self.play_stock_to_build(action)
             if len(self.stock_pile) < 1:
@@ -236,6 +226,9 @@ class ComputerPlayer(Player, ABC):
 
         print("Number of stock cards:")
         print(self.model_input[13 + 13 * 4 + 13 + 12 * 4])
+
+    def __str__(self):
+        return self.model.__str__()
 
 
 class NeuralNetwork(nn.Module):

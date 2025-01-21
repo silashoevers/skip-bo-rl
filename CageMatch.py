@@ -1,15 +1,17 @@
 import datetime
 import itertools
+import logging
 import os
 
 import torch
 from tqdm import tqdm
-import logging
 
+import ComputerPlayer as CP
+import OpponentComputerPlayer as OCP
 from ComputerPlayer import NeuralNetwork
 from Game import Game
 from RandomComputerPlayer import RandomComputerPlayer
-from WinOnlyComputerPlayer import WinOnlyComputerPlayer
+from WinOnlyRewardStrategy import WinOnlyRewardStrategy
 
 NUM_GAMES = 100
 NUM_COMPUTER_PLAYERS = 2
@@ -24,9 +26,10 @@ MODELS_TO_TEST = ['complex_computer_player_10000.pth',
 
 
 class Tester:
-    def __init__(self, computers, device_used, models, names, num_comp_players=NUM_COMPUTER_PLAYERS,
+    def __init__(self, computers, reward_strategies, device_used, models, names, num_comp_players=NUM_COMPUTER_PLAYERS,
                  num_cards=NUM_CARDS, num_games=NUM_GAMES):
         self.computer_types = computers
+        self.reward_strategies = reward_strategies
         self.device = device_used
         self.models = models
         self.names = names
@@ -39,7 +42,8 @@ class Tester:
         game_winners['lost'] = 0
         for _ in range(self.num_games):
             game = Game(num_human_players=0, num_computer_players=self.num_comp_players, model=self.models,
-                        names=self.names, computer_type=self.computer_types, device=self.device,
+                        names=self.names, computer_type=self.computer_types,
+                        reward_strategy=self.reward_strategies, device=self.device,
                         num_stock_cards=self.num_cards)
             current_player_index = 0
             while game.is_game_running:
@@ -57,7 +61,8 @@ class Tester:
 def run_tests(test_these_models=MODELS_TO_TEST, num_comp_players=NUM_COMPUTER_PLAYERS,
               num_cards=NUM_CARDS, num_games=NUM_GAMES):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logname = os.path.join('TestResults', ("cageMatchTest"+datetime.datetime.now().strftime("%d%m%Y-%H%M%S") + ".log"))
+    logname = os.path.join('TestResults',
+                           ("cageMatchTest" + datetime.datetime.now().strftime("%d%m%Y-%H%M%S") + ".log"))
     logging.basicConfig(filename=logname, format='%(asctime)s - %(levelname)s - %(message)s', filemode='w')
     logger = logging.getLogger()
     logger.setLevel(logging.NOTSET)
@@ -66,19 +71,30 @@ def run_tests(test_these_models=MODELS_TO_TEST, num_comp_players=NUM_COMPUTER_PL
     # structure for training
     logger.debug("Testing following models: ")
     for model_name in tqdm(test_these_models):
-        model = NeuralNetwork(127, 124, 3, 500).to(device)
+        opponent = model_name.startswith("opponent")
+        if opponent:
+            model = NeuralNetwork(OCP.DIM_IN,
+                                  OCP.DIM_OUT,
+                                  OCP.HIDDEN_COUNT,
+                                  OCP.DIM_HIDDEN).to(device)
+        else:
+            model = NeuralNetwork(CP.DIM_IN,
+                                  CP.DIM_OUT,
+                                  CP.HIDDEN_COUNT,
+                                  CP.DIM_HIDDEN).to(device)
         model.load_state_dict(torch.load(os.path.join('models', model_name), weights_only=True))
         model.eval()
-        models_to_test.append((model, model_name))
+        models_to_test.append((model, model_name, opponent))
         logger.info(model_name)
     results = []
     print("Testing against randoms")
     # only using one type of ComputerPlayer since the difference between players is their reward
     logger.debug("vs Random tests")
-    for model in tqdm(models_to_test):
-        tester = Tester(computers=[RandomComputerPlayer, WinOnlyComputerPlayer], device_used=device,
-                        models=['', model[0]], names=["Random", model[1]], num_comp_players=num_comp_players,
-                        num_cards=num_cards, num_games=num_games)
+    for (model, name, opponent) in tqdm(models_to_test):
+        tester = Tester(computers=[RandomComputerPlayer, OCP.OpponentComputerPlayer if opponent else CP.ComputerPlayer],
+                        device_used=device, models=['', model],
+                        reward_strategies=[WinOnlyRewardStrategy, WinOnlyRewardStrategy], names=["Random", name],
+                        num_comp_players=num_comp_players, num_cards=num_cards, num_games=num_games)
         results.append(tester.test())
     for r in results:
         logger.info(r)
@@ -86,9 +102,12 @@ def run_tests(test_these_models=MODELS_TO_TEST, num_comp_players=NUM_COMPUTER_PL
     matches = list(itertools.combinations(models_to_test, 2))
     match_results = []
     logger.debug("Cage match models")
-    for match in tqdm(matches):
-        tester = Tester(computers=[WinOnlyComputerPlayer, WinOnlyComputerPlayer], device_used=device,
-                        models=[list(match)[0][0], list(match)[1][0]], names=[list(match)[0][1], list(match)[1][1]])
+    for ((model1, name1, opponent1), (model2, name2, opponent2)) in tqdm(matches):
+        computer_types = [OCP.OpponentComputerPlayer if opponent1 else CP.ComputerPlayer,
+                          OCP.ComputerPlayer if opponent2 else CP.ComputerPlayer]
+        tester = Tester(computers=computer_types, device_used=device, models=[model1, model2],
+                        reward_strategies=[WinOnlyRewardStrategy, WinOnlyRewardStrategy], names=[name1, name2],
+                        num_comp_players=num_comp_players, num_cards=num_cards, num_games=num_games)
         match_results.append(tester.test())
     for m in match_results:
         logger.info(m)
