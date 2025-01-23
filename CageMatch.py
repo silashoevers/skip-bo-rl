@@ -6,6 +6,7 @@ import re
 
 import torch
 from tqdm import tqdm
+import pandas as pd
 
 import ComputerPlayer as CP
 import OpponentComputerPlayer as OCP
@@ -91,11 +92,8 @@ def run_tests(test_these_models, num_comp_players=NUM_COMPUTER_PLAYERS,
                         reward_strategies=[WinOnlyRewardStrategy, WinOnlyRewardStrategy], names=["Random", name],
                         num_comp_players=num_comp_players, num_cards=num_cards, num_games=num_games)
         results.append(tester.test())
-    for r in results:
-        logger.info(r)
     print("Testing against each other")
     matches = list(itertools.combinations(models_to_test, 2))
-    match_results = []
     logger.debug("Cage match models")
     for ((model1, name1, opponent1), (model2, name2, opponent2)) in tqdm(matches):
         computer_types = [OCP.OpponentComputerPlayer if opponent1 else CP.ComputerPlayer,
@@ -103,10 +101,13 @@ def run_tests(test_these_models, num_comp_players=NUM_COMPUTER_PLAYERS,
         tester = Tester(computers=computer_types, device_used=device, models=[model1, model2],
                         reward_strategies=[WinOnlyRewardStrategy, WinOnlyRewardStrategy], names=[name1, name2],
                         num_comp_players=num_comp_players, num_cards=num_cards, num_games=num_games)
-        match_results.append(tester.test())
-    for m in match_results:
+        results.append(tester.test())
+    for m in results:
         logger.info(m)
     logger.debug("Tests finished")
+    results_df = pd.DataFrame(results)
+    csv_name = logname.replace(".log", ".csv")
+    results_df.to_csv(csv_name, index=False)
 
 
 if __name__ == "__main__":
