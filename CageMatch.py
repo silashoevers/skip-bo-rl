@@ -107,9 +107,6 @@ def run_tests(test_these_models, num_comp_players=NUM_COMPUTER_PLAYERS,
     for m in results:
         logger.info(m)
         player_1, player_2 = [name for name in m.keys() if name != "lost"]
-        print(player_1)
-        print(m[player_1])
-        print(m[player_2])
         results_df.loc[player_1, player_2] = m[player_1]
         results_df.loc[player_2, player_1] = m[player_2]
     csv_name = logname.replace(".log", ".csv")
