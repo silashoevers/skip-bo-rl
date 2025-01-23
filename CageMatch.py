@@ -2,6 +2,7 @@ import datetime
 import itertools
 import logging
 import os
+import re
 
 import torch
 from tqdm import tqdm
@@ -16,13 +17,6 @@ from WinOnlyRewardStrategy import WinOnlyRewardStrategy
 NUM_GAMES = 100
 NUM_COMPUTER_PLAYERS = 2
 NUM_CARDS = 30
-MODELS_TO_TEST = ['complex_computer_player_10000.pth',
-                  'discard_computer_player_10000.pth',
-                  'discard_stock_computer_player_10000.pth',
-                  'discard_win_computer_player_10000.pth',
-                  'stock_computer_player_10000.pth',
-                  'win_stock_computer_player_10000.pth'
-                  ]
 
 
 class Tester:
@@ -58,7 +52,7 @@ class Tester:
         return game_winners
 
 
-def run_tests(test_these_models=MODELS_TO_TEST, num_comp_players=NUM_COMPUTER_PLAYERS,
+def run_tests(test_these_models, num_comp_players=NUM_COMPUTER_PLAYERS,
               num_cards=NUM_CARDS, num_games=NUM_GAMES):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logname = os.path.join('TestResults',
@@ -91,6 +85,7 @@ def run_tests(test_these_models=MODELS_TO_TEST, num_comp_players=NUM_COMPUTER_PL
     # only using one type of ComputerPlayer since the difference between players is their reward
     logger.debug("vs Random tests")
     for (model, name, opponent) in tqdm(models_to_test):
+
         tester = Tester(computers=[RandomComputerPlayer, OCP.OpponentComputerPlayer if opponent else CP.ComputerPlayer],
                         device_used=device, models=['', model],
                         reward_strategies=[WinOnlyRewardStrategy, WinOnlyRewardStrategy], names=["Random", name],
@@ -104,7 +99,7 @@ def run_tests(test_these_models=MODELS_TO_TEST, num_comp_players=NUM_COMPUTER_PL
     logger.debug("Cage match models")
     for ((model1, name1, opponent1), (model2, name2, opponent2)) in tqdm(matches):
         computer_types = [OCP.OpponentComputerPlayer if opponent1 else CP.ComputerPlayer,
-                          OCP.ComputerPlayer if opponent2 else CP.ComputerPlayer]
+                          OCP.OpponentComputerPlayer if opponent2 else CP.ComputerPlayer]
         tester = Tester(computers=computer_types, device_used=device, models=[model1, model2],
                         reward_strategies=[WinOnlyRewardStrategy, WinOnlyRewardStrategy], names=[name1, name2],
                         num_comp_players=num_comp_players, num_cards=num_cards, num_games=num_games)
@@ -115,4 +110,13 @@ def run_tests(test_these_models=MODELS_TO_TEST, num_comp_players=NUM_COMPUTER_PL
 
 
 if __name__ == "__main__":
-    run_tests()
+    all_models = sorted(os.listdir("models"),
+                        key=lambda x: ("_".join(x.split("_")[:-1]), int(re.search("[0-9]+", x)[0])))
+    models = []
+    prev = all_models[0]
+    for model in all_models[1:]:
+        if model.split("_")[:-1] != prev.split("_")[:-1]:
+            models.append(prev)
+        prev = model
+    models.append(prev)
+    run_tests(models)

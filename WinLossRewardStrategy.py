@@ -1,7 +1,7 @@
 import ComputerPlayer
 
 
-class StockRewardStrategy:
+class WinLossRewardStrategy:
     def __init__(self):
         self.player = None
 
@@ -13,7 +13,7 @@ class StockRewardStrategy:
         return 0
 
     def reward_discard_to_build(self, discard_index, build_index):
-        self.player.play_discard_to_build(discard_index, build_index)
+        self.player.play_discard_to_build(discard_index,build_index)
         return 0
 
     def reward_hand_to_build(self, card_face, build_index):
@@ -21,12 +21,14 @@ class StockRewardStrategy:
         return 0
 
     def reward_stock_to_build(self, build_index):
+        reward = 0
         self.player.play_stock_to_build(build_index)
-        reward = ComputerPlayer.STOCK_REWARD
+        if len(self.player.stock_pile) < 1:
+            reward = ComputerPlayer.WIN_REWARD
         return reward
 
     def reward_loss(self):
-        return 0
+        return ComputerPlayer.LOSS_REWARD
 
     def __str__(self):
-        return "stock_computer_player"
+        return "win_loss_computer_player"

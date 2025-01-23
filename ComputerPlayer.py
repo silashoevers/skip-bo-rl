@@ -11,6 +11,11 @@ DIM_OUT = 124
 HIDDEN_COUNT = 3
 DIM_HIDDEN = 500
 
+WIN_REWARD = 100
+LOSS_REWARD = -100
+STOCK_REWARD = 1
+DISCARD_REWARD = -0.5
+
 class ComputerPlayer(Player):
     def __init__(self, game, model, device, reward_strategy=None, name=""):
         super().__init__(game)

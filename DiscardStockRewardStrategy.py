@@ -1,3 +1,6 @@
+import ComputerPlayer
+
+
 class DiscardStockRewardStrategy:
     def __init__(self):
         self.player = None
@@ -7,7 +10,7 @@ class DiscardStockRewardStrategy:
 
     def reward_hand_to_discard(self, card_face, discard_index):
         self.player.play_hand_to_discard(card_face, discard_index)
-        return -0.1
+        return ComputerPlayer.DISCARD_REWARD
 
     def reward_discard_to_build(self, discard_index, build_index):
         self.player.play_discard_to_build(discard_index, build_index)
@@ -18,9 +21,11 @@ class DiscardStockRewardStrategy:
         return 0
 
     def reward_stock_to_build(self, build_index):
-        reward = 1
         self.player.play_stock_to_build(build_index)
-        return reward
+        return ComputerPlayer.STOCK_REWARD
+
+    def reward_loss(self):
+        return 0
 
     def __str__(self):
         return "discard_stock_computer_player"

@@ -7,8 +7,12 @@ import torch.optim as optim
 from tqdm.auto import tqdm
 
 import ComputerPlayer as CP
+from EverythingRewardStrategy import EverythingRewardStrategy
 from Game import Game
 import OpponentComputerPlayer as OCP
+from LossOnlyRewardStrategy import LossOnlyRewardStrategy
+from PunishRewardStrategy import PunishRewardStrategy
+from WinLossRewardStrategy import WinLossRewardStrategy
 from WinOnlyRewardStrategy import WinOnlyRewardStrategy
 from StockRewardStrategy import StockRewardStrategy
 from WinStockRewardStrategy import WinStockRewardStrategy
@@ -112,10 +116,11 @@ class Trainer:
         self.optimizer.step()
 
     def train(self):
+        cur_cards = 1
         for episode in tqdm(range(NUM_GAMES)):
             game = Game(num_human_players=0, num_computer_players=NUM_COMPUTER_PLAYERS, model=self.policy_net,
                         computer_type=self.computer_type, reward_strategy=self.reward_strategy, device=self.device,
-                        num_stock_cards=MAX_NUM_CARDS, names=["", ""])
+                        num_stock_cards=cur_cards, names=["", ""])
             last_experience = [None for _ in range(NUM_COMPUTER_PLAYERS)]
             while game.is_game_running:
                 for current_player_index in range(NUM_COMPUTER_PLAYERS):
@@ -141,9 +146,19 @@ class Trainer:
                             target_net_state_dict[key] = policy_net_state_dict[key] * TAU + target_net_state_dict[
                                 key] * (1 - TAU)
                         self.target_net.load_state_dict(target_net_state_dict)
+            # Check if someone won
+            someone_won = False
+            for current_player_index in range(NUM_COMPUTER_PLAYERS):
+                if len(game.players[current_player_index].stock_pile) == 0:
+                    someone_won = True
+                    if cur_cards < MAX_NUM_CARDS:
+                        cur_cards += 1
+
             for current_player_index in range(NUM_COMPUTER_PLAYERS):
                 current_player = game.players[current_player_index]
-                if len(current_player.stock_pile) == 0:
+                if last_experience[current_player_index] is not None:
+                    if someone_won and len(current_player.stock_pile) > 0:
+                        last_experience[current_player_index].reward += current_player.reward_strategy.reward_loss()
                     self.memory.add(last_experience[current_player_index])
             if (episode + 1) % (NUM_GAMES // 10) == 0:
                 model_name = str(game.players[0])
@@ -155,7 +170,8 @@ if __name__ == "__main__":
 
     computer_types = [OCP.OpponentComputerPlayer, CP.ComputerPlayer]
     strategies = [StockRewardStrategy, WinOnlyRewardStrategy, WinStockRewardStrategy, DiscardRewardStrategy,
-                  DiscardWinRewardStrategy, DiscardWinRewardStrategy, DiscardStockRewardStrategy, ComplexRewardStrategy]
+                  DiscardWinRewardStrategy, DiscardStockRewardStrategy, ComplexRewardStrategy,
+                  EverythingRewardStrategy, LossOnlyRewardStrategy, PunishRewardStrategy, WinLossRewardStrategy]
     for computer_type in computer_types:
         for strategy in strategies:
             trainer = Trainer(computer_type, strategy, device)

@@ -1,3 +1,6 @@
+import ComputerPlayer
+
+
 class WinStockRewardStrategy:
     def __init__(self):
         self.player = None
@@ -18,12 +21,14 @@ class WinStockRewardStrategy:
         return 0
 
     def reward_stock_to_build(self, build_index):
-        reward = 0
         self.player.play_stock_to_build(build_index)
-        reward = 0.5
+        reward = ComputerPlayer.STOCK_REWARD
         if len(self.player.stock_pile) < 1:
-            reward += 1
+            reward += ComputerPlayer.WIN_REWARD
         return reward
+
+    def reward_loss(self):
+        return 0
 
     def __str__(self):
         return "win_stock_computer_player"
