@@ -15,7 +15,7 @@ from Game import Game
 from RandomComputerPlayer import RandomComputerPlayer
 from WinOnlyRewardStrategy import WinOnlyRewardStrategy
 
-NUM_GAMES = 100
+NUM_GAMES = 1
 NUM_COMPUTER_PLAYERS = 2
 NUM_CARDS = 30
 
@@ -102,10 +102,16 @@ def run_tests(test_these_models, num_comp_players=NUM_COMPUTER_PLAYERS,
                         reward_strategies=[WinOnlyRewardStrategy, WinOnlyRewardStrategy], names=[name1, name2],
                         num_comp_players=num_comp_players, num_cards=num_cards, num_games=num_games)
         results.append(tester.test())
+    logger.debug("Tests finished")
+    results_df = pd.DataFrame(columns=test_these_models + ["Random"], index=test_these_models + ["Random"])
     for m in results:
         logger.info(m)
-    logger.debug("Tests finished")
-    results_df = pd.DataFrame(results)
+        player_1, player_2 = [name for name in m.keys() if name != "lost"]
+        print(player_1)
+        print(m[player_1])
+        print(m[player_2])
+        results_df.loc[player_1, player_2] = m[player_1]
+        results_df.loc[player_2, player_1] = m[player_2]
     csv_name = logname.replace(".log", ".csv")
     results_df.to_csv(csv_name, index=False)
 
