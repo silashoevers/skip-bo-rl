@@ -1,15 +1,18 @@
 import os
 import random
+import torch
 
 from Player import *
-from ComputerPlayer import *
+import ComputerPlayer as CP
+import OpponentComputerPlayer as OCP
 from Card import *
-from WinOnlyComputerPlayer import WinOnlyComputerPlayer
+from WinOnlyRewardStrategy import WinOnlyRewardStrategy
 
 
 class Game:
 
-    def __init__(self, num_human_players, num_computer_players, model, computer_type, device, num_stock_cards=30):
+    def __init__(self, num_human_players, num_computer_players, model, names, computer_type, reward_strategy, device,
+                 num_stock_cards=30):
         """
         :param num_human_players:
         :param num_computer_players:
@@ -20,15 +23,18 @@ class Game:
         """
         self.players = []
         if model is None:
-            model = NeuralNetwork(127, 124, 4, 500).to(device)
-        if isinstance(model,list):
+            model = CP.NeuralNetwork(127, 124, 4, 500).to(device)
+        if isinstance(model, list):
             assert len(model) == num_computer_players
             assert len(computer_type) == num_computer_players
+            assert len(reward_strategy) == num_computer_players
             for i in range(num_computer_players):
-                self.players.append(computer_type[i](self, model=model[i], device=device))
+                self.players.append(
+                    computer_type[i](self, model=model[i], device=device, reward_strategy=reward_strategy[i](),
+                                     name=names[i]))
         else:
             for _ in range(num_computer_players):
-                self.players.append(computer_type(self, model=model, device=device))
+                self.players.append(computer_type(self, model=model, device=device, reward_strategy=reward_strategy()))
 
         for _ in range(num_human_players):
             self.players.append(HumanPlayer(self))
@@ -91,7 +97,8 @@ class Game:
             print("Everyone lost")
         else:
             # Check who was the winner based on who has an empty stock pile
-            winning_player_index = [player_index for player_index, player in enumerate(self.players) if len(player.stock_pile) == 0][0]
+            winning_player_index = \
+                [player_index for player_index, player in enumerate(self.players) if len(player.stock_pile) == 0][0]
             print(f"Player number {winning_player_index} has won. Congratulations!")
 
 
@@ -104,10 +111,23 @@ if __name__ == '__main__':
     num_computer_players = int(input('How many computer players?\n'))
     num_stock_cards = int(input('How many stock cards do you want to play with? (Default = 30)\n').strip() or "30")
     model_name = input('Please enter a model name:\n')
-    model = NeuralNetwork(127, 124, 2, 500).to(device)
+    opponent = model_name.startswith("opponent")
+    if opponent:
+        model = CP.NeuralNetwork(OCP.DIM_IN,
+                                 OCP.DIM_OUT,
+                                 OCP.HIDDEN_COUNT,
+                                 OCP.DIM_HIDDEN).to(device)
+    else:
+        model = CP.NeuralNetwork(CP.DIM_IN,
+                                 CP.DIM_OUT,
+                                 CP.HIDDEN_COUNT,
+                                 CP.DIM_HIDDEN).to(device)
     model.load_state_dict(torch.load(os.path.join("models", model_name), weights_only=True))
     model.eval()
-    game = Game(num_human_players, num_computer_players, model, WinOnlyComputerPlayer, device, num_stock_cards)
+    names = [f'computer_player_{i}' for i in range(num_computer_players)]
+    names += [f'human_player_{i}' for i in range(num_human_players)]
+    computer_type = OCP.OpponentComputerPlayer if opponent else CP.ComputerPlayer
+    game = Game(num_human_players, num_computer_players, model, names, computer_type, WinOnlyRewardStrategy, device,
+                num_stock_cards)
 
     game.start()
-

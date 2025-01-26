@@ -99,12 +99,24 @@ class Player(ABC):
         # TODO: Add opponent game state (Scale up to 3 other players)
         # TODO: Add index indicator for build and discard piles
         # TODO: Show complete discard pile contents (not just top card)
+
+        # Print opponents stats if playing against one player
+        if len(self.game.players) == 2:
+            # There might be a better way to get the other player
+            other_player = [player for player in self.game.players if player != self][0]
+            print(f"{len(other_player.stock_pile)} cards left in stock pile")
+            print(f"[{other_player.stock_pile[-1]}]]  " + " ".join(
+                [f"[{other_player.discard_piles[pile_index][-1] if len(other_player.discard_piles[pile_index]) > 0 else '_'}]" for
+                 pile_index in range(0, 4)]))
+            print()
+
         # Building pile top cards.
         tops_of_build_piles = [self.game.get_top_of_build_pile(pile_index) for pile_index in range(0,4)]
         print("  ".join([f"[{top if top > 0 else '_'}]" for top in tops_of_build_piles]))
         print()
         # Discard piles. Only show top card per pile.
         print(f"[{self.stock_pile[-1]}]]  " + " ".join([f"[{self.discard_piles[pile_index][-1] if len(self.discard_piles[pile_index]) > 0 else '_'}]" for pile_index in range(0,4)]))
+        print(f"{len(self.stock_pile)} cards left in stock pile")
         print('----------------------')
         # Hand and stock
         print("=> " + " ".join([f"[{card}]" for card in self.hand]) + " <=")

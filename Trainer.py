@@ -1,21 +1,25 @@
 from collections import deque
 import random
 
-from ComputerPlayer import ComputerPlayer, NeuralNetwork
-from Game import Game
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from tqdm.auto import tqdm
 
-from WinOnlyComputerPlayer import WinOnlyComputerPlayer
-from StockComputerPlayer import StockComputerPlayer
-from WinStockComputerPlayer import WinStockComputerPlayer
-from DiscardComputerPlayer import DiscardComputerPlayer
-from DiscardStockComputerPlayer import DiscardStockComputerPlayer
-from DiscardWinComputerPlayer import DiscardWinComputerPlayer
-from ComplexComputerPlayer import ComplexComputerPlayer
+import ComputerPlayer as CP
+from EverythingRewardStrategy import EverythingRewardStrategy
+from Game import Game
+import OpponentComputerPlayer as OCP
+from LossOnlyRewardStrategy import LossOnlyRewardStrategy
+from PunishRewardStrategy import PunishRewardStrategy
+from WinLossRewardStrategy import WinLossRewardStrategy
+from WinOnlyRewardStrategy import WinOnlyRewardStrategy
+from StockRewardStrategy import StockRewardStrategy
+from WinStockRewardStrategy import WinStockRewardStrategy
+from DiscardRewardStrategy import DiscardRewardStrategy
+from DiscardStockRewardStrategy import DiscardStockRewardStrategy
+from DiscardWinRewardStrategy import DiscardWinRewardStrategy
+from ComplexRewardStrategy import ComplexRewardStrategy
 
 BATCH_SIZE = 128
 GAMMA = 0.99
@@ -51,12 +55,29 @@ class ReplayMemory(object):
 
 class Trainer:
     # Based on https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
-    def __init__(self, computer_type, device):
+    def __init__(self, computer_type, reward_strategy, device):
         self.computer_type = computer_type
+        self.reward_strategy = reward_strategy
         self.device = device
         self.memory = ReplayMemory(10_000)
-        self.policy_net = NeuralNetwork(127, 124, 3, 500).to(device)
-        self.target_net = NeuralNetwork(127, 124, 3, 500).to(device)
+        if self.computer_type == CP.ComputerPlayer:
+            self.policy_net = CP.NeuralNetwork(CP.DIM_IN,
+                                               CP.DIM_OUT,
+                                               CP.HIDDEN_COUNT,
+                                               CP.DIM_HIDDEN).to(device)
+            self.target_net = CP.NeuralNetwork(CP.DIM_IN,
+                                               CP.DIM_OUT,
+                                               CP.HIDDEN_COUNT,
+                                               CP.DIM_HIDDEN).to(device)
+        elif self.computer_type == OCP.OpponentComputerPlayer:
+            self.policy_net = CP.NeuralNetwork(OCP.DIM_IN,
+                                               OCP.DIM_OUT,
+                                               OCP.HIDDEN_COUNT,
+                                               OCP.DIM_HIDDEN).to(device)
+            self.target_net = CP.NeuralNetwork(OCP.DIM_IN,
+                                               OCP.DIM_OUT,
+                                               OCP.HIDDEN_COUNT,
+                                               OCP.DIM_HIDDEN).to(device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
         self.optimizer = optim.Adam(self.policy_net.parameters())
@@ -95,9 +116,11 @@ class Trainer:
         self.optimizer.step()
 
     def train(self):
+        cur_cards = 1
         for episode in tqdm(range(NUM_GAMES)):
             game = Game(num_human_players=0, num_computer_players=NUM_COMPUTER_PLAYERS, model=self.policy_net,
-                        computer_type=self.computer_type, device=self.device, num_stock_cards=MAX_NUM_CARDS)
+                        computer_type=self.computer_type, reward_strategy=self.reward_strategy, device=self.device,
+                        num_stock_cards=cur_cards, names=["", ""])
             last_experience = [None for _ in range(NUM_COMPUTER_PLAYERS)]
             while game.is_game_running:
                 for current_player_index in range(NUM_COMPUTER_PLAYERS):
@@ -123,11 +146,21 @@ class Trainer:
                             target_net_state_dict[key] = policy_net_state_dict[key] * TAU + target_net_state_dict[
                                 key] * (1 - TAU)
                         self.target_net.load_state_dict(target_net_state_dict)
+            # Check if someone won
+            someone_won = False
+            for current_player_index in range(NUM_COMPUTER_PLAYERS):
+                if len(game.players[current_player_index].stock_pile) == 0:
+                    someone_won = True
+                    if cur_cards < MAX_NUM_CARDS:
+                        cur_cards += 1
+
             for current_player_index in range(NUM_COMPUTER_PLAYERS):
                 current_player = game.players[current_player_index]
-                if len(current_player.stock_pile) == 0:
+                if last_experience[current_player_index] is not None:
+                    if someone_won and len(current_player.stock_pile) > 0:
+                        last_experience[current_player_index].reward += current_player.reward_strategy.reward_loss()
                     self.memory.add(last_experience[current_player_index])
-            if (episode + 1) % (NUM_GAMES//10) == 0:
+            if (episode + 1) % (NUM_GAMES // 10) == 0:
                 model_name = str(game.players[0])
                 torch.save(self.policy_net.state_dict(), f"models/{model_name}_{episode + 1}.pth")
 
@@ -135,7 +168,11 @@ class Trainer:
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    classes = [StockComputerPlayer, WinOnlyComputerPlayer, WinStockComputerPlayer, DiscardComputerPlayer, DiscardWinComputerPlayer, DiscardWinComputerPlayer,DiscardStockComputerPlayer,ComplexComputerPlayer]
-    for class_ in classes:
-        trainer = Trainer(class_, device)
-        trainer.train()
+    computer_types = [OCP.OpponentComputerPlayer, CP.ComputerPlayer]
+    strategies = [StockRewardStrategy, WinOnlyRewardStrategy, WinStockRewardStrategy, DiscardRewardStrategy,
+                  DiscardWinRewardStrategy, DiscardStockRewardStrategy, ComplexRewardStrategy,
+                  EverythingRewardStrategy, LossOnlyRewardStrategy, PunishRewardStrategy, WinLossRewardStrategy]
+    for computer_type in computer_types:
+        for strategy in strategies:
+            trainer = Trainer(computer_type, strategy, device)
+            trainer.train()
