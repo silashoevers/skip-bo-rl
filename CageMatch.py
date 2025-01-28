@@ -13,7 +13,7 @@ import OpponentComputerPlayer as OCP
 from ComputerPlayer import NeuralNetwork
 from Game import Game
 from RandomComputerPlayer import RandomComputerPlayer
-from WinOnlyRewardStrategy import WinOnlyRewardStrategy
+from reward_strategies.WinOnlyRewardStrategy import WinOnlyRewardStrategy
 
 NUM_GAMES = 1
 NUM_COMPUTER_PLAYERS = 2

@@ -6,7 +6,7 @@ from Player import *
 import ComputerPlayer as CP
 import OpponentComputerPlayer as OCP
 from Card import *
-from WinOnlyRewardStrategy import WinOnlyRewardStrategy
+from reward_strategies.WinOnlyRewardStrategy import WinOnlyRewardStrategy
 
 
 class Game:

@@ -7,19 +7,19 @@ import torch.optim as optim
 from tqdm.auto import tqdm
 
 import ComputerPlayer as CP
-from EverythingRewardStrategy import EverythingRewardStrategy
 from Game import Game
 import OpponentComputerPlayer as OCP
-from LossOnlyRewardStrategy import LossOnlyRewardStrategy
-from PunishRewardStrategy import PunishRewardStrategy
-from WinLossRewardStrategy import WinLossRewardStrategy
-from WinOnlyRewardStrategy import WinOnlyRewardStrategy
-from StockRewardStrategy import StockRewardStrategy
-from WinStockRewardStrategy import WinStockRewardStrategy
-from DiscardRewardStrategy import DiscardRewardStrategy
-from DiscardStockRewardStrategy import DiscardStockRewardStrategy
-from DiscardWinRewardStrategy import DiscardWinRewardStrategy
-from ComplexRewardStrategy import ComplexRewardStrategy
+from reward_strategies.LossOnlyRewardStrategy import LossOnlyRewardStrategy
+from reward_strategies.PunishRewardStrategy import PunishRewardStrategy
+from reward_strategies.WinLossRewardStrategy import WinLossRewardStrategy
+from reward_strategies.WinOnlyRewardStrategy import WinOnlyRewardStrategy
+from reward_strategies.StockRewardStrategy import StockRewardStrategy
+from reward_strategies.WinStockRewardStrategy import WinStockRewardStrategy
+from reward_strategies.DiscardRewardStrategy import DiscardRewardStrategy
+from reward_strategies.DiscardStockRewardStrategy import DiscardStockRewardStrategy
+from reward_strategies.DiscardWinRewardStrategy import DiscardWinRewardStrategy
+from reward_strategies.ComplexRewardStrategy import ComplexRewardStrategy
+from reward_strategies.EverythingRewardStrategy import EverythingRewardStrategy
 
 BATCH_SIZE = 128
 GAMMA = 0.99
