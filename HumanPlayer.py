@@ -47,7 +47,8 @@ class HumanPlayer(Player):
                     case _:  # Unknown command
                         print("Invalid input")
                         print(HELP_STRING)
-            except IndexError:
+            except Exception as e:
+                print(e)
                 print("Invalid input, try again")
             # Check if the player has won, if so: end the game
             if len(self.stock_pile) < 1:

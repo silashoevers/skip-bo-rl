@@ -117,6 +117,7 @@ class Trainer:
 
     def train(self):
         cur_cards = 1
+        steps_done = 0
         for episode in tqdm(range(NUM_GAMES)):
             game = Game(num_human_players=0, num_computer_players=NUM_COMPUTER_PLAYERS, model=self.policy_net,
                         computer_type=self.computer_type, reward_strategy=self.reward_strategy, device=self.device,
@@ -135,7 +136,8 @@ class Trainer:
                             last_experience[current_player_index].next_mask = current_player.mask
                             self.memory.add(last_experience[current_player_index])
                         in_state = current_player.model_input
-                        action, reward = current_player.select_and_do_action(training=True, verbose=False)
+                        action, reward = current_player.select_and_do_action(training=True, steps_done=steps_done, verbose=False)
+                        steps_done += 1
                         last_experience[current_player_index] = Experience(in_state, action, reward, None, None)
 
                         self.optimize_model()
@@ -162,7 +164,7 @@ class Trainer:
                     self.memory.add(last_experience[current_player_index])
             if (episode + 1) % (NUM_GAMES // 10) == 0:
                 model_name = str(game.players[0])
-                torch.save(self.policy_net.state_dict(), f"models/{model_name}_{episode + 1}.pth")
+                torch.save(self.policy_net.state_dict(), f"models/exploit_{model_name}_{episode + 1}.pth")
 
 
 if __name__ == "__main__":

@@ -16,6 +16,10 @@ LOSS_REWARD = -100
 STOCK_REWARD = 1
 DISCARD_REWARD = -0.5
 
+EPS_START = 0.9
+EPS_END = 0.05
+EPS_DECAY = 1000
+
 class ComputerPlayer(Player):
     def __init__(self, game, model, device, reward_strategy=None, name=""):
         super().__init__(game)
@@ -44,11 +48,6 @@ class ComputerPlayer(Player):
         self.device = device
         self.model = model
         self.num_piles = 4
-
-        self.EPS_START = 0.9
-        self.EPS_END = 0.05
-        self.EPS_DECAY = 1000
-        self.steps_done = 0
 
         self.end_turn = False
         self.name = name
@@ -97,8 +96,8 @@ class ComputerPlayer(Player):
         offset = 13 + 4 * 13 + 13 + 12 * 4
         self.model_input[offset] = len(self.stock_pile)
 
-    def select_action(self, training, verbose):
-        eps_threshold = self.EPS_END + (self.EPS_START - self.EPS_END) * math.exp(-self.steps_done / self.EPS_DECAY)
+    def select_action(self, training, verbose, steps_done):
+        eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-steps_done / EPS_DECAY)
         if training and random.random() < eps_threshold:
             action = torch.multinomial(self.mask, 1).item()
         else:
@@ -110,13 +109,13 @@ class ComputerPlayer(Player):
                 action = masked_output.argmax().item()
         return action
 
-    def select_and_do_action(self, training, verbose=False):
+    def select_and_do_action(self, training, steps_done, verbose=False):
         """
         Returns reward if training is enabled
         """
         reward = 0  # Justin Case
 
-        action = self.select_action(training, verbose)
+        action = self.select_action(training, verbose, steps_done)
 
         selected_action = action
         if action < 13 * 4:  # Hand to build
@@ -162,7 +161,7 @@ class ComputerPlayer(Player):
             self.compute_mask()
             self.compute_model_input()
             # self.print_game_state()  # TODO: Enable this with a DEBUG flag
-            self.select_and_do_action(training=False, verbose=False)
+            self.select_and_do_action(training=False, verbose=False, steps_done=0)
 
     def pretty_print_mask(self):
         print("Mask:")
