@@ -18,7 +18,7 @@ DISCARD_REWARD = -0.5
 
 EPS_START = 0.9
 EPS_END = 0.05
-EPS_DECAY = 1000
+EPS_DECAY = 10_000
 
 class ComputerPlayer(Player):
     def __init__(self, game, model, device, reward_strategy=None, name=""):
