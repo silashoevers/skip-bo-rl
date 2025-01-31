@@ -15,7 +15,7 @@ from Game import Game
 from RandomComputerPlayer import RandomComputerPlayer
 from reward_strategies.WinOnlyRewardStrategy import WinOnlyRewardStrategy
 
-NUM_GAMES = 1
+NUM_GAMES = 100
 NUM_COMPUTER_PLAYERS = 2
 NUM_CARDS = 30
 
@@ -66,7 +66,7 @@ def run_tests(test_these_models, num_comp_players=NUM_COMPUTER_PLAYERS,
     # structure for training
     logger.debug("Testing following models: ")
     for model_name in tqdm(test_these_models):
-        opponent = model_name.startswith("opponent")
+        opponent = "opponent" in model_name
         if opponent:
             model = NeuralNetwork(OCP.DIM_IN,
                                   OCP.DIM_OUT,
@@ -77,7 +77,7 @@ def run_tests(test_these_models, num_comp_players=NUM_COMPUTER_PLAYERS,
                                   CP.DIM_OUT,
                                   CP.HIDDEN_COUNT,
                                   CP.DIM_HIDDEN).to(device)
-        model.load_state_dict(torch.load(os.path.join('models', model_name), weights_only=True))
+        model.load_state_dict(torch.load(os.path.join('models', model_name), weights_only=True, map_location='cuda'))
         model.eval()
         models_to_test.append((model, model_name, opponent))
         logger.info(model_name)
