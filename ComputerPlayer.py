@@ -51,6 +51,7 @@ class ComputerPlayer(Player):
 
         self.end_turn = False
         self.name = name
+        self.actions = 0
 
     def compute_mask(self):
         self.mask.zero_()
@@ -158,6 +159,7 @@ class ComputerPlayer(Player):
 
         self.end_turn = False
         while not self.end_turn and self.game.is_game_running:
+            self.actions += 1
             self.compute_mask()
             self.compute_model_input()
             # self.print_game_state()  # TODO: Enable this with a DEBUG flag

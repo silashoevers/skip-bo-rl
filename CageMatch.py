@@ -35,13 +35,17 @@ class Tester:
     def test(self):
         game_winners = {key: 0 for key in self.names}
         game_winners['lost'] = 0
-        for _ in range(self.num_games):
+        action_list = []
+        for i in range(self.num_games):
             game = Game(num_human_players=0, num_computer_players=self.num_comp_players, model=self.models,
                         names=self.names, computer_type=self.computer_types,
                         reward_strategy=self.reward_strategies, device=self.device,
                         num_stock_cards=self.num_cards)
             current_player_index = 0
+            turns = 0
             while game.is_game_running:
+                if current_player_index == 0:
+                    turns += 1
                 game.players[current_player_index].play()
                 current_player_index = (current_player_index + 1) % len(game.players)
             if len(game.draw_pile) == 0:
@@ -50,7 +54,8 @@ class Tester:
                 # Check who was the winner based on who has an empty stock pile
                 winning_player = [player for player in game.players if len(player.stock_pile) == 0][0]
                 game_winners[winning_player.name] += 1
-        return game_winners
+            action_list.append(self.names + [i, turns] + [player.actions for player in game.players])
+        return game_winners, action_list
 
 
 def run_tests(test_these_models, num_comp_players=NUM_COMPUTER_PLAYERS,
@@ -81,17 +86,19 @@ def run_tests(test_these_models, num_comp_players=NUM_COMPUTER_PLAYERS,
         model.eval()
         models_to_test.append((model, model_name, opponent))
         logger.info(model_name)
-    results = []
+    win_results = []
+    action_results = []
     print("Testing against randoms")
     # only using one type of ComputerPlayer since the difference between players is their reward
     logger.debug("vs Random tests")
     for (model, name, opponent) in tqdm(models_to_test):
-
         tester = Tester(computers=[RandomComputerPlayer, OCP.OpponentComputerPlayer if opponent else CP.ComputerPlayer],
                         device_used=device, models=['', model],
                         reward_strategies=[WinOnlyRewardStrategy, WinOnlyRewardStrategy], names=["Random", name],
                         num_comp_players=num_comp_players, num_cards=num_cards, num_games=num_games)
-        results.append(tester.test())
+        game_winners, action_list = tester.test()
+        win_results.append(game_winners)
+        action_results += action_list
     print("Testing against each other")
     matches = list(itertools.combinations(models_to_test, 2))
     logger.debug("Cage match models")
@@ -101,16 +108,27 @@ def run_tests(test_these_models, num_comp_players=NUM_COMPUTER_PLAYERS,
         tester = Tester(computers=computer_types, device_used=device, models=[model1, model2],
                         reward_strategies=[WinOnlyRewardStrategy, WinOnlyRewardStrategy], names=[name1, name2],
                         num_comp_players=num_comp_players, num_cards=num_cards, num_games=num_games)
-        results.append(tester.test())
+        game_winners, action_list = tester.test()
+        win_results.append(game_winners)
+        action_results += action_list
     logger.debug("Tests finished")
-    results_df = pd.DataFrame(columns=test_these_models + ["Random"], index=test_these_models + ["Random"])
-    for m in results:
+
+    # Write the win results to a csv file
+    win_results_df = pd.DataFrame(columns=test_these_models + ["Random"], index=test_these_models + ["Random"])
+    for m in win_results:
         logger.info(m)
         player_1, player_2 = [name for name in m.keys() if name != "lost"]
-        results_df.loc[player_1, player_2] = m[player_1]
-        results_df.loc[player_2, player_1] = m[player_2]
-    csv_name = logname.replace(".log", ".csv")
-    results_df.to_csv(csv_name, index=False)
+        win_results_df.loc[player_1, player_2] = m[player_1]
+        win_results_df.loc[player_2, player_1] = m[player_2]
+    win_csv_name = logname.replace(".log", "_win.csv")
+    win_results_df.to_csv(win_csv_name, index=False)
+
+    # Write the action results to a csv
+    action_results_df = pd.DataFrame(data=action_results,
+                                     columns=["Player 1", "Player 2", "Game Number", "Turns", "Player 1 Actions Count",
+                                              "Player 2 Actions Count"])
+    actions_csv_name = logname.replace(".log", "_actions.csv")
+    action_results_df.to_csv(actions_csv_name, index=False)
 
 
 if __name__ == "__main__":

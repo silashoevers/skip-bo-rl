@@ -59,7 +59,6 @@ class Game:
 
         self.is_game_running = True
 
-    # TODO: The game could crash if a player hoards cards. Fix this.
     def draw_card(self):
         if len(self.draw_pile) == 0:
             # Reshuffle
@@ -111,7 +110,7 @@ if __name__ == '__main__':
     num_computer_players = int(input('How many computer players?\n'))
     num_stock_cards = int(input('How many stock cards do you want to play with? (Default = 30)\n').strip() or "30")
     model_name = input('Please enter a model name:\n')
-    opponent = model_name.startswith("opponent")
+    opponent = "opponent" in model_name
     if opponent:
         model = CP.NeuralNetwork(OCP.DIM_IN,
                                  OCP.DIM_OUT,
